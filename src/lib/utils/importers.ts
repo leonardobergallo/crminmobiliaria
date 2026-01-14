@@ -54,7 +54,7 @@ export async function importarBuscadasCalificadas(filePath: string) {
       if (!cliente || !monto) continue
 
       // Obtener o crear cliente
-      let clienteDoc = await prisma.cliente.findUnique({
+      let clienteDoc = await prisma.cliente.findFirst({
         where: { nombreCompleto: cliente },
       })
 
