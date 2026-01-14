@@ -1,7 +1,5 @@
 import * as XLSX from 'xlsx'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from './prisma'
 
 // Utilidades para normalización
 export function normalizarMonto(texto: string): {
