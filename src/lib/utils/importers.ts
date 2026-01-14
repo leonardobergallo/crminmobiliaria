@@ -119,30 +119,24 @@ export async function importarAptaCredito(filePath: string) {
         ? 'DEPARTAMENTO'
         : 'CASA'
 
-      await prisma.propiedad.upsert({
-        where: {
-          // Usar combinación como unique
-          id: `${ubicacion}-${precio}`,
-        },
-        create: {
+      await prisma.propiedad.create({
+        data: {
           tipo,
           ubicacion,
           localidad: (row['Localidad'] || row['localidad']) as string,
-          precio,
-          precioNumerico: valor,
+          precio: valor || null,
           moneda,
           descripcion: (row['Descripcion'] || row['descripcion']) as string,
           dormitorios: parseInt(
             (row['Dormitorios'] || row['dormitorios']) as string
           ) || null,
-          link: (row['MLS'] ||
+          urlMls: (row['MLS'] ||
             row['INMOBILIARIA'] ||
             row['mls'] ||
-            row['inmobiliaria']) as string,
+            row['inmobiliaria']) as string || null,
           aptaCredito: true,
           fuente: 'APTA_CREDITO',
         },
-        update: {},
       })
     }
   }
