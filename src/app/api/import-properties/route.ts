@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
-import { PrismaClient } from '@prisma/client';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/utils/prisma';
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,9 +71,10 @@ export async function POST(req: NextRequest) {
           // Crear o actualizar propiedad
           await prisma.propiedad.upsert({
             where: {
-              direccion_tipo: {
+              direccion_tipo_usuarioId: {
                 direccion: direccion || `${titulo}_${Date.now()}`,
                 tipo: tipoNormalizado,
+                usuarioId: null,
               },
             },
             create: {
