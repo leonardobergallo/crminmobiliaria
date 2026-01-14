@@ -71,12 +71,8 @@ export async function importarBuscadasCalificadas(filePath: string) {
       const origen =
         sheetName === 'Efectivo' ? 'CALIFICADA_EFECTIVO' : 'CALIFICADA_CREDITO'
 
-      await prisma.busqueda.upsert({
-        where: {
-          // No hay unique constraint para búsquedas, así que usar create
-          id: `${clienteDoc.id}-${sheetName}`,
-        },
-        create: {
+      await prisma.busqueda.create({
+        data: {
           clienteId: clienteDoc.id,
           origen,
           presupuestoTexto: textoOriginal,
@@ -92,7 +88,6 @@ export async function importarBuscadasCalificadas(filePath: string) {
           planillaRef: sheetName,
           estado: (row['ESTADO'] as string) || 'NUEVO',
         },
-        update: {},
       })
     }
   }
