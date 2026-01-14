@@ -3,11 +3,12 @@ import { prisma } from '@/lib/utils/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const cliente = await prisma.cliente.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         busquedas: {
           include: { matchesPropiedades: { include: { propiedad: true } } },
@@ -35,14 +36,15 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { nombreCompleto, telefono, email, notas } = body
 
     const cliente = await prisma.cliente.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(nombreCompleto && { nombreCompleto }),
         ...(telefono !== undefined && { telefono }),
@@ -68,11 +70,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     await prisma.cliente.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ success: true })

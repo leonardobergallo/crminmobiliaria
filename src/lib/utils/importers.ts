@@ -47,7 +47,7 @@ export async function importarBuscadasCalificadas(filePath: string) {
     if (!workbook.SheetNames.includes(sheetName)) continue
 
     const worksheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json(worksheet)
+    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[]
 
     for (const row of data) {
       const cliente = row['CLIENTE'] as string | undefined
@@ -108,7 +108,7 @@ export async function importarAptaCredito(filePath: string) {
 
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json(worksheet)
+    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[]
 
     for (const row of data) {
       const ubicacion = (row['Ubicación'] || row['ubicacion']) as string
@@ -162,7 +162,7 @@ export async function importarComisiones(filePath: string) {
   }
 
   const worksheet = workbook.Sheets['ULTIMAS OEPERACIONES']
-  const data = XLSX.utils.sheet_to_json(worksheet)
+  const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[]
 
   for (const row of data) {
     const nro = parseInt(row['NRO'] as string)
