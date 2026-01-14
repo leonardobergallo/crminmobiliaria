@@ -12,28 +12,48 @@ export default function UserSelector() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    fetchUsuarios();
-    // Cargar usuario seleccionado del localStorage
-    const saved = localStorage.getItem('selectedUserId');
-    if (saved) {
-      setSelectedId(saved);
-    }
+    const initializeUsers = async () => {
+      // Cargar usuario seleccionado del localStorage primero
+      const saved = localStorage.getItem('selectedUserId');
+      if (saved) {
+        setSelectedId(saved);
+      }
+      
+      // Luego cargar usuarios
+      await fetchUsuarios();
+      setIsLoading(false);
+    };
+
+    initializeUsers();
   }, []);
 
   const fetchUsuarios = async () => {
     try {
       const response = await fetch('/api/usuarios');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
-      setUsuarios(data);
-      if (data.length > 0 && !selectedId) {
-        setSelectedId(data[0].id);
-        localStorage.setItem('selectedUserId', data[0].id);
+      
+      if (Array.isArray(data)) {
+        setUsuarios(data);
+        // Si no hay usuario seleccionado y hay usuarios, selecciona el primero
+        if (!selectedId && data.length > 0) {
+          const firstId = data[0].id;
+          setSelectedId(firstId);
+          localStorage.setItem('selectedUserId', firstId);
+        }
+      } else {
+        console.error('Expected array but got:', typeof data);
+        setUsuarios([]);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching usuarios:', error);
+      setUsuarios([]);
     }
   };
 
@@ -42,6 +62,14 @@ export default function UserSelector() {
     localStorage.setItem('selectedUserId', id);
     setIsOpen(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="w-full px-4 py-2 mb-4 rounded-lg bg-slate-800 text-slate-400 text-sm">
+        Cargando agentes...
+      </div>
+    );
+  }
 
   const currentUser = usuarios.find(u => u.id === selectedId);
 
@@ -53,7 +81,7 @@ export default function UserSelector() {
       >
         <span className="flex items-center gap-2">
           <span className="text-lg">👤</span>
-          {currentUser?.nombre || 'Selecciona agente'}
+          {currentUser?.nombre || 'Sin agente'}
         </span>
         <span className="text-xs">▼</span>
       </button>
