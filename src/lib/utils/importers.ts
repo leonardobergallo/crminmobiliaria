@@ -205,3 +205,77 @@ export async function importarComisiones(filePath: string) {
 
   console.log('✅ Comisiones importadas')
 }
+
+// Importar Propiedades desde Excel con formato: titulo, tipo, zona, descripcion, precio, moneda, ambientes, banos, superficie, direccion, whatsapp
+export async function importarPropiedadesDesdeExcel(filePath: string) {
+  const workbook = XLSX.readFile(filePath)
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+  const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[]
+
+  let count = 0
+
+  for (const row of data) {
+    const titulo = (row['titulo'] as string) || ''
+    const tipo = (row['tipo'] as string) || 'venta'
+    const zona = (row['zona'] as string) || ''
+    const descripcion = (row['descripcion'] as string) || ''
+    let precio = row['precio']
+    const monedaInput = (row['moneda'] as string) || 'USD'
+    const ambientes = parseInt((row['ambientes'] as string) || '0') || 0
+    const banos = parseInt((row['banos'] as string) || '0') || 0
+    const superficie = parseInt((row['superficie'] as string) || '0') || 0
+    const direccion = (row['direccion'] as string) || ''
+    const whatsapp = (row['whatsapp'] as string) || ''
+
+    // Convertir precio a número
+    let precioNumerico = 0
+    if (typeof precio === 'number') {
+      precioNumerico = precio
+    } else if (typeof precio === 'string') {
+      precioNumerico = parseInt(precio.replace(/\D/g, '')) || 0
+    }
+
+    // Crear propiedad con datos básicos
+    await prisma.propiedad.upsert({
+      where: {
+        direccion_tipo: {
+          direccion,
+          tipo: normalizarTipoPropiedad(tipo),
+        },
+      },
+      create: {
+        titulo,
+        tipo: normalizarTipoPropiedad(tipo),
+        subtipo: tipo,
+        zona,
+        descripcion,
+        precio: precioNumerico,
+        moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+        ambientes,
+        banos,
+        superficie,
+        direccion,
+        whatsapp,
+        urlMls: '',
+        aptaCredito: false,
+      },
+      update: {
+        titulo,
+        descripcion,
+        precio: precioNumerico,
+        moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+        ambientes,
+        banos,
+        superficie,
+        whatsapp,
+        zona,
+        subtipo: tipo,
+      },
+    })
+
+    count++
+  }
+
+  console.log(`✅ ${count} propiedades importadas`)
+  return { count }
+}

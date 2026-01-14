@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
+import UserSelector from './UserSelector'
 
 const Sidebar = () => {
   const pathname = usePathname()
@@ -14,6 +15,8 @@ const Sidebar = () => {
     { href: '/busquedas', label: 'Búsquedas', icon: '🔍' },
     { href: '/propiedades', label: 'Propiedades', icon: '🏠' },
     { href: '/operaciones', label: 'Comisiones', icon: '💰' },
+    { href: '/importar', label: 'Importar', icon: '📥' },
+    { href: '/agentes', label: 'Agentes', icon: '👨‍💼' },
   ]
 
   return (
@@ -22,6 +25,9 @@ const Sidebar = () => {
         <h1 className="text-2xl font-bold">CRM Inmobiliario</h1>
         <p className="text-sm text-slate-400 mt-1">REMAX</p>
       </div>
+
+      {/* Selector de Usuario */}
+      <UserSelector />
 
       <nav className="space-y-2">
         {links.map((link) => (

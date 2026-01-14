@@ -10,13 +10,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// USUARIO/AGENTE: Información del agente inmobiliario
+model Usuario {
+  id                String    @id @default(cuid())
+  nombre            String    @unique
+  email             String?   @unique
+  telefono          String?
+  avatar            String?   // URL del avatar
+  activo            Boolean   @default(true)
+  
+  // Relaciones
+  propiedades       Propiedad[]
+  clientes          Cliente[]
+  operaciones       Operacion[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
 // CLIENTE: Datos del cliente/comprador
 model Cliente {
   id                String    @id @default(cuid())
-  nombreCompleto    String    @unique
+  nombreCompleto    String
   telefono          String?
   email             String?
   notas             String?
+  
+  // Relación con agente
+  usuarioId         String?
+  usuario           Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   
   // Relaciones
   busquedas         Busqueda[]
@@ -25,6 +47,8 @@ model Cliente {
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  
+  @@unique([nombreCompleto, usuarioId])
 }
 
 // BUSQUEDA: Lead comprador / Búsqueda activa de cliente
@@ -70,21 +94,32 @@ model Propiedad {
   id                String    @id @default(cuid())
   
   // Ubicación y descripción
-  tipo              String    // CASA | DEPARTAMENTO | OTRO
+  titulo            String?   // Título de la propiedad
+  tipo              String    // CASA | DEPARTAMENTO | TERRENO | SOLAR | OTRO
+  subtipo           String?   // Tipo original del Excel
   ubicacion         String
+  zona              String?   // Zona/barrio
   localidad         String?
+  direccion         String?
   
   // Características
-  precio            String?   // Se guarda como string original si viene con formato
-  precioNumerico    Int?      // Valor numérico extraído
-  moneda            String?   // ARS | USD
+  precio            Int?      // Precio numérico
+  moneda            String    @default("USD") // ARS | USD
   descripcion       String?
   dormitorios       Int?
+  ambientes         Int?      // Número total de ambientes
+  banos             Int?      // Número de baños
+  superficie        Int?      // Superficie en m²
+  whatsapp          String?   // Contacto WhatsApp
   
   // Enlaces y fuentes
-  link              String?   // URL a MLS/Inmobiliaria
+  urlMls            String?   // URL a MLS/Inmobiliaria
   fuente            String?   // APTA_CREDITO | OTRA
   aptaCredito       Boolean   @default(false)
+  
+  // Relación con agente
+  usuarioId         String?
+  usuario           Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   
   // Relaciones
   matches           MatchBusquedaPropiedad[]
@@ -92,8 +127,11 @@ model Propiedad {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   
+  @@unique([direccion, tipo, usuarioId])
   @@index([localidad])
   @@index([aptaCredito])
+  @@index([zona])
+  @@index([usuarioId])
 }
 
 // MATCH: Relación entre búsqueda y propiedad sugerida
@@ -148,6 +186,10 @@ model Operacion {
   clienteId                 String?
   cliente                   Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   
+  // Relación con agente
+  usuarioId                 String?
+  usuario                   Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  
   // Descripción de la operación
   descripcion               String
   precioReal                Int?      // Precio de venta
@@ -167,6 +209,7 @@ model Operacion {
   updatedAt                 DateTime  @updatedAt
   
   @@index([nro])
+  @@index([usuarioId])
 }
 
 // RESERVA Y DOCUMENTACION

@@ -1,0 +1,52 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { nombre, email, telefono } = await req.json();
+
+    const usuario = await prisma.usuario.update({
+      where: { id },
+      data: {
+        ...(nombre && { nombre }),
+        ...(email !== undefined && { email: email || null }),
+        ...(telefono !== undefined && { telefono: telefono || null }),
+      },
+    });
+
+    return NextResponse.json(usuario);
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json(
+      { error: 'Error updating usuario' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    await prisma.usuario.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json(
+      { error: 'Error deleting usuario' },
+      { status: 500 }
+    );
+  }
+}
