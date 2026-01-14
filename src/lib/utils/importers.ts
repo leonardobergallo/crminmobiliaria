@@ -228,42 +228,49 @@ export async function importarPropiedadesDesdeExcel(filePath: string) {
     }
 
     // Crear propiedad con datos básicos
-    await prisma.propiedad.upsert({
+    const existingPropiedad = await prisma.propiedad.findFirst({
       where: {
-        direccion_tipo: {
-          direccion,
-          tipo: normalizarTipoPropiedad(tipo),
-        },
-      },
-      create: {
-        titulo,
-        tipo: normalizarTipoPropiedad(tipo),
-        subtipo: tipo,
-        zona,
-        descripcion,
-        precio: precioNumerico,
-        moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
-        ambientes,
-        banos,
-        superficie,
         direccion,
-        whatsapp,
-        urlMls: '',
-        aptaCredito: false,
-      },
-      update: {
-        titulo,
-        descripcion,
-        precio: precioNumerico,
-        moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
-        ambientes,
-        banos,
-        superficie,
-        whatsapp,
-        zona,
-        subtipo: tipo,
+        tipo: normalizarTipoPropiedad(tipo),
       },
     })
+
+    if (existingPropiedad) {
+      await prisma.propiedad.update({
+        where: { id: existingPropiedad.id },
+        data: {
+          titulo,
+          descripcion,
+          precio: precioNumerico,
+          moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+          ambientes,
+          banos,
+          superficie,
+          whatsapp,
+          zona,
+          subtipo: tipo,
+        },
+      })
+    } else {
+      await prisma.propiedad.create({
+        data: {
+          titulo,
+          tipo: normalizarTipoPropiedad(tipo),
+          subtipo: tipo,
+          zona,
+          descripcion,
+          precio: precioNumerico,
+          moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+          ambientes,
+          banos,
+          superficie,
+          direccion,
+          whatsapp,
+          urlMls: '',
+          aptaCredito: false,
+        },
+      })
+    }
 
     count++
   }
