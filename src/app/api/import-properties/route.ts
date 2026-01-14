@@ -69,44 +69,50 @@ export async function POST(req: NextRequest) {
           const tipoNormalizado = normalizarTipoPropiedad(tipo);
 
           // Crear o actualizar propiedad
-          await prisma.propiedad.upsert({
+          const existingPropiedad = await prisma.propiedad.findFirst({
             where: {
-              direccion_tipo_usuarioId: {
-                direccion: direccion || `${titulo}_${Date.now()}`,
-                tipo: tipoNormalizado,
-                usuarioId: null,
-              },
-            },
-            create: {
-              titulo,
+              direccion: direccion || `${titulo}_${Date.now()}`,
               tipo: tipoNormalizado,
-              subtipo: tipo,
-              zona,
-              descripcion,
-              precio: precioNumerico,
-              moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
-              ambientes,
-              banos,
-              superficie,
-              direccion,
-              whatsapp,
-              urlMls: '',
-              aptaCredito: false,
-              ubicacion: direccion || zona || '',
-            },
-            update: {
-              titulo,
-              descripcion,
-              precio: precioNumerico,
-              moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
-              ambientes,
-              banos,
-              superficie,
-              whatsapp,
-              zona,
-              subtipo: tipo,
             },
           });
+
+          if (existingPropiedad) {
+            await prisma.propiedad.update({
+              where: { id: existingPropiedad.id },
+              data: {
+                titulo,
+                descripcion,
+                precio: precioNumerico,
+                moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+                ambientes,
+                banos,
+                superficie,
+                whatsapp,
+                zona,
+                subtipo: tipo,
+              },
+            });
+          } else {
+            await prisma.propiedad.create({
+              data: {
+                titulo,
+                tipo: tipoNormalizado,
+                subtipo: tipo,
+                zona,
+                descripcion,
+                precio: precioNumerico,
+                moneda: monedaInput.toUpperCase() === 'USD' ? 'USD' : 'ARS',
+                ambientes,
+                banos,
+                superficie,
+                direccion,
+                whatsapp,
+                urlMls: '',
+                aptaCredito: false,
+                ubicacion: direccion || zona || '',
+              },
+            });
+          }
 
           count++;
         } catch (rowError) {
