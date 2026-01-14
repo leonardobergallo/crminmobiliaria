@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// CLIENTE: Datos del cliente/comprador
+model Cliente {
+  id                String    @id @default(cuid())
+  nombreCompleto    String    @unique
+  telefono          String?
+  email             String?
+  notas             String?
+  
+  // Relaciones
+  busquedas         Busqueda[]
+  tareas            Tarea[]
+  operaciones       Operacion[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// BUSQUEDA: Lead comprador / Búsqueda activa de cliente
+model Busqueda {
+  id                    String    @id @default(cuid())
+  clienteId             String
+  cliente               Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  
+  // Origen de la búsqueda
+  origen                String    // ENUM: ACTIVA | PERSONALIZADA | CALIFICADA_EFECTIVO | CALIFICADA_CREDITO
+  
+  // Presupuesto
+  presupuestoTexto      String?   // Original: "75 MIL DOLARES", "2.500.000", etc
+  presupuestoValor      Int?      // Numérico si se pudo extraer
+  moneda                String?   // ARS | USD
+  
+  // Preferencias de propiedad
+  tipoPropiedad         String?   // DEPARTAMENTO | CASA | OTRO
+  ubicacionPreferida    String?
+  dormitoriosMin        Int?
+  cochera               String?   // SI | NO | descripción
+  
+  // Fin de uso
+  finalidad             String?   // INVERSION | VIVIENDA
+  
+  // Estado del pipeline
+  estado                String    @default("NUEVO") // NUEVO | CALIFICADO | VISITA | RESERVA | CERRADO | PERDIDO
+  
+  // Notas y referencias
+  observaciones         String?
+  planillaRef           String?   // Referencia a la planilla original
+  
+  // Relaciones
+  matchesPropiedades    MatchBusquedaPropiedad[]
+  tareas                Tarea[]
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// PROPIEDAD: Inventario/oportunidades inmobiliarias
+model Propiedad {
+  id                String    @id @default(cuid())
+  
+  // Ubicación y descripción
+  tipo              String    // CASA | DEPARTAMENTO | OTRO
+  ubicacion         String
+  localidad         String?
+  
+  // Características
+  precio            String?   // Se guarda como string original si viene con formato
+  precioNumerico    Int?      // Valor numérico extraído
+  moneda            String?   // ARS | USD
+  descripcion       String?
+  dormitorios       Int?
+  
+  // Enlaces y fuentes
+  link              String?   // URL a MLS/Inmobiliaria
+  fuente            String?   // APTA_CREDITO | OTRA
+  aptaCredito       Boolean   @default(false)
+  
+  // Relaciones
+  matches           MatchBusquedaPropiedad[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([localidad])
+  @@index([aptaCredito])
+}
+
+// MATCH: Relación entre búsqueda y propiedad sugerida
+model MatchBusquedaPropiedad {
+  id                String    @id @default(cuid())
+  busquedaId        String
+  busqueda          Busqueda  @relation(fields: [busquedaId], references: [id], onDelete: Cascade)
+  
+  propiedadId       String
+  propiedad         Propiedad @relation(fields: [propiedadId], references: [id], onDelete: Cascade)
+  
+  estado            String    @default("SUGERIDA") // SUGERIDA | ENVIADA | VISITA | DESCARTADA | RESERVADA
+  notas             String?
+  
+  fecha             DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@unique([busquedaId, propiedadId])
+}
+
+// TAREA: Agenda/To-do items
+model Tarea {
+  id                String    @id @default(cuid())
+  
+  // Asignación
+  clienteId         String?
+  cliente           Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  
+  busquedaId        String?
+  busqueda          Busqueda? @relation(fields: [busquedaId], references: [id], onDelete: SetNull)
+  
+  // Contenido
+  titulo            String
+  descripcion       String?
+  fechaVencimiento  DateTime?
+  estado            String    @default("PENDIENTE") // PENDIENTE | HECHA
+  prioridad         String    @default("MEDIA") // BAJA | MEDIA | ALTA
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([clienteId])
+  @@index([busquedaId])
+  @@index([estado])
+}
+
+// OPERACION: Cierre de venta y comisiones
+model Operacion {
+  id                        String    @id @default(cuid())
+  
+  nro                       Int?      @unique
+  clienteId                 String?
+  cliente                   Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  
+  // Descripción de la operación
+  descripcion               String
+  precioReal                Int?      // Precio de venta
+  
+  // Comisiones (6% total según estructura REMAX)
+  comisionTotal             Float?    // 6% total
+  totalComisionEquipo       Float?    // 45% del total (de la comisión)
+  comisionEquipoUnaPunta    Float?    // 50% de equipo (una punta)
+  comisionLeoDosPuntas      Float?    // 20% por dos puntas
+  comisionLeoUnaPunta       Float?    // 20% por una punta
+  
+  // Cronograma
+  fechaPagoAprox            DateTime?
+  observaciones             String?
+  
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  
+  @@index([nro])
+}
+
+// RESERVA Y DOCUMENTACION
+model ReservaDocumento {
+  id                    String    @id @default(cuid())
+  
+  nro                   Int?      @unique
+  reservaTexto          String?
+  boletoCompraVentaTexto String?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// CONFIGURACION: Rutas y datos de importación
+model ConfigImport {
+  id                String    @id @default(cuid())
+  
+  clave             String    @unique // nombre de la configuración
+  valor             String    // ruta o valor
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

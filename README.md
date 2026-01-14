@@ -1,22 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM Inmobiliario - Sistema de Gestión para Agentes REMAX
 
-## Getting Started
+Sistema web completo para gestionar clientes, búsquedas inmobiliarias, propiedades, tareas y comisiones.
 
-First, run the development server:
+## 🚀 Características
 
+- **Dashboard**: KPIs, pipeline por estado, comisiones estimadas
+- **Gestión de Clientes**: Crear, editar, listar clientes con búsquedas asociadas
+- **Búsquedas/Leads**: Registrar búsquedas de compradores, filtrar por estado/presupuesto/tipo
+- **Propiedades**: Inventario de inmuebles, filtros por zona y apta crédito
+- **Operaciones/Comisiones**: Seguimiento de ventas y cálculo de comisiones
+- **Importación desde Excel**: Importar datos desde archivos Excel existentes
+- **API REST**: Endpoints CRUD completos para todas las entidades
+
+## 📋 Stack Tecnológico
+
+- **Frontend**: Next.js 15 (App Router) + React + TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Backend**: Next.js API Routes
+- **Base de Datos**: PostgreSQL (Neon)
+- **ORM**: Prisma
+- **Excel**: XLSX, ExcelJS
+
+## 📦 Instalación
+
+### Requisitos
+- Node.js 18+ 
+- npm o yarn
+- Acceso a base de datos PostgreSQL
+
+### Setup
+
+1. **Clonar/Descargar el proyecto**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd crm-inmobiliario
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Instalar dependencias**
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Configurar variables de entorno**
+El archivo `.env` ya contiene la cadena de conexión PostgreSQL.
+
+4. **Iniciar servidor de desarrollo**
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en `http://localhost:3000`
+
+## 📥 Importación desde Excel
+
+### Proceso Manual (API)
+
+Realiza un POST a `/api/import` con el siguiente body:
+
+```json
+{
+  "fileType": "all",
+  "buscadasCalificadas": "C:\\Users\\leona\\Desktop\\Busquedas Calificadas (1).xlsx",
+  "aptaCredito": "C:\\Users\\leona\\Desktop\\APTA CREDITO.xls.xlsx",
+  "comisiones": "C:\\Users\\leona\\Desktop\\COMISIONES REMAx (1).xlsx"
+}
+```
+
+## 🏗️ Estructura de Carpetas
+
+```
+src/app/
+├── api/                     # API Routes CRUD
+├── dashboard/               # Panel principal
+├── clientes/                # Gestión de clientes
+├── busquedas/               # Gestión de búsquedas
+├── propiedades/             # Listado de propiedades
+└── operaciones/             # Comisiones y ventas
+```
+
+## 🗄️ Modelo de Datos Principal
+
+- **Cliente**: Personas que buscan propiedades
+- **Búsqueda**: Leads o requerimientos de compradores
+- **Propiedad**: Inventario inmobiliario
+- **Operacion**: Ventas realizadas y comisiones
+- **Tarea**: Recordatorios y seguimiento
+
+## 🚀 Inicio Rápido
+
+```bash
+# Instalar
+npm install
+
+# Ejecutar desarrollo
+npm run dev
+
+# Ver en navegador
+http://localhost:3000
+```
+
+## 📊 Endpoints Principales
+
+- `GET/POST /api/clientes` - Gestión de clientes
+- `GET/POST /api/busquedas` - Gestión de búsquedas
+- `GET/POST /api/propiedades` - Gestión de propiedades
+- `GET/POST /api/operaciones` - Gestión de comisiones
+- `POST /api/import` - Importar desde Excel
+
+---
+
+**Última actualización**: Enero 2026
+
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
