@@ -252,7 +252,7 @@ export async function importarPropiedadesDesdeExcel(filePath: string) {
           titulo,
           tipo: normalizarTipoPropiedad(tipo),
           subtipo: tipo,
-          ubicacion: ubicacion || zona || '',
+          ubicacion: zona || direccion || '',
           zona,
           descripcion,
           precio: precioNumerico,
