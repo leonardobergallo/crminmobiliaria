@@ -10,6 +10,7 @@ interface Stats {
   reservas: number
   cerrados: number
   comisionesTotales: number
+  agente: string
 }
 
 export default function Dashboard() {
@@ -20,18 +21,48 @@ export default function Dashboard() {
     reservas: 0,
     cerrados: 0,
     comisionesTotales: 0,
+    agente: 'Sin agente',
   })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Re-fetch cuando cambie el agente seleccionado
+    const interval = setInterval(fetchStats, 1000)
     fetchStats()
+    return () => clearInterval(interval)
   }, [])
 
   const fetchStats = async () => {
     try {
+      // Obtener el agente seleccionado del localStorage
+      const selectedUserId = localStorage.getItem('selectedUserId')
+      
+      // Obtener datos del agente si existe
+      let agenteNombre = 'Sin agente'
+      if (selectedUserId) {
+        try {
+          const userResponse = await fetch(`/api/usuarios/${selectedUserId}`)
+          if (userResponse.ok) {
+            const user = await userResponse.json()
+            agenteNombre = user.nombre
+          }
+        } catch (e) {
+          console.error('Error fetching user:', e)
+        }
+      }
+
+      // Construir URL con filtro de usuario si existe
+      const busquedasUrl = selectedUserId 
+        ? `/api/busquedas?usuarioId=${selectedUserId}`
+        : '/api/busquedas'
+      
+      const operacionesUrl = selectedUserId
+        ? `/api/operaciones?usuarioId=${selectedUserId}`
+        : '/api/operaciones'
+
       const [busquedas, operaciones] = await Promise.all([
-        fetch('/api/busquedas').then((r) => r.json()),
-        fetch('/api/operaciones').then((r) => r.json()),
+        fetch(busquedasUrl).then((r) => r.json()),
+        fetch(operacionesUrl).then((r) => r.json()),
       ])
 
       const estados = {
@@ -60,6 +91,7 @@ export default function Dashboard() {
         reservas: estados.RESERVA,
         cerrados: estados.CERRADO,
         comisionesTotales: comisionesTotal,
+        agente: agenteNombre,
       })
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -72,7 +104,13 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
+        <div className="text-right">
+          <p className="text-sm text-slate-600">Agente:</p>
+          <p className="text-lg font-semibold text-blue-600">{stats.agente}</p>
+        </div>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

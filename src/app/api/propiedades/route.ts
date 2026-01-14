@@ -6,10 +6,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const localidad = searchParams.get('localidad')
     const aptaCredito = searchParams.get('aptaCredito')
+    const usuarioId = searchParams.get('usuarioId')
 
     const where: any = {}
     if (localidad) where.localidad = localidad
     if (aptaCredito === 'true') where.aptaCredito = true
+    if (usuarioId) where.usuarioId = usuarioId
 
     const propiedades = await prisma.propiedad.findMany({
       where,

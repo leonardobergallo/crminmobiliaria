@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/utils/prisma';
 
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id },
+    });
+
+    if (!usuario) {
+      return NextResponse.json(
+        { error: 'Usuario no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(usuario);
+  } catch (error) {
+    console.error('Error:', error);
+    return NextResponse.json(
+      { error: 'Error fetching usuario' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

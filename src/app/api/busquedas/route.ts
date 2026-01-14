@@ -6,10 +6,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const clienteId = searchParams.get('clienteId')
     const estado = searchParams.get('estado')
+    const usuarioId = searchParams.get('usuarioId')
 
     const where: any = {}
     if (clienteId) where.clienteId = clienteId
     if (estado) where.estado = estado
+    if (usuarioId) {
+      where.cliente = { usuarioId }
+    }
 
     const busquedas = await prisma.busqueda.findMany({
       where,

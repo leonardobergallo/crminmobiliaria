@@ -5,9 +5,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const clienteId = searchParams.get('clienteId')
+    const usuarioId = searchParams.get('usuarioId')
 
     const where: any = {}
     if (clienteId) where.clienteId = clienteId
+    if (usuarioId) where.usuarioId = usuarioId
 
     const operaciones = await prisma.operacion.findMany({
       where,
