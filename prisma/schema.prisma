@@ -19,13 +19,34 @@ model Usuario {
   avatar            String?   // URL del avatar
   activo            Boolean   @default(true)
   
+  // Autenticación
+  password          String?   // Hash de la contraseña
+  rol               String    @default("agente") // "admin" | "agente" | "supervisor"
+  
+  // Sesión
+  lastLogin         DateTime?
+  
   // Relaciones
   propiedades       Propiedad[]
   clientes          Cliente[]
   operaciones       Operacion[]
+  sesiones          Session[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+// SESSION: Sesiones activas de usuarios
+model Session {
+  id                String    @id @default(cuid())
+  usuarioId         String
+  usuario           Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  token             String    @unique
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  
+  @@index([token])
+  @@index([usuarioId])
 }
 
 // CLIENTE: Datos del cliente/comprador
@@ -44,6 +65,8 @@ model Cliente {
   busquedas         Busqueda[]
   tareas            Tarea[]
   operaciones       Operacion[]
+  enviosPropiedades EnvioPropiedad[]
+  comunicaciones    Comunicacion[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -123,6 +146,7 @@ model Propiedad {
   
   // Relaciones
   matches           MatchBusquedaPropiedad[]
+  envios            EnvioPropiedad[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -233,4 +257,61 @@ model ConfigImport {
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+// ENVIO DE PROPIEDAD: Registro de links enviados a clientes
+model EnvioPropiedad {
+  id                String    @id @default(cuid())
+  
+  clienteId         String
+  cliente           Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  
+  propiedadId       String?
+  propiedad         Propiedad? @relation(fields: [propiedadId], references: [id], onDelete: SetNull)
+  
+  // Si no es una propiedad del sistema, guardar URL externa
+  urlExterna        String?   // Link externo (MLS, Argenprop, etc)
+  tituloExterno     String?   // Descripción del link externo
+  
+  // Detalles del envío
+  canal             String    @default("WHATSAPP") // WHATSAPP | EMAIL | OTRO
+  mensaje           String?   // Mensaje enviado (opcional)
+  respuesta         String?   // INTERESADO | NO_INTERESADO | SIN_RESPUESTA | VISITA_PROGRAMADA
+  
+  fechaEnvio        DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([clienteId])
+  @@index([propiedadId])
+  @@index([fechaEnvio])
+}
+
+// COMUNICACION: Log de conversaciones WhatsApp/Email
+model Comunicacion {
+  id                String    @id @default(cuid())
+  
+  clienteId         String
+  cliente           Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  
+  // Tipo de comunicación
+  tipo              String    @default("WHATSAPP") // WHATSAPP | LLAMADA | EMAIL | VISITA | OTRO
+  direccion         String    @default("SALIENTE") // SALIENTE | ENTRANTE
+  
+  // Contenido
+  resumen           String    // Resumen de la conversación
+  detalle           String?   // Detalles adicionales
+  
+  // Resultado
+  resultado         String?   // CONTACTADO | NO_CONTESTO | OCUPADO | CITA_AGENDADA | etc
+  
+  // Seguimiento
+  requiereSeguimiento Boolean @default(false)
+  fechaSeguimiento  DateTime?
+  
+  fecha             DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([clienteId])
+  @@index([fecha])
+  @@index([tipo])
 }

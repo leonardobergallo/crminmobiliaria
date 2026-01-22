@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,7 +19,8 @@ interface Cliente {
   telefono?: string
   email?: string
   notas?: string
-  _count?: { busquedas: number }
+  busquedas?: any[]
+  operaciones?: any[]
 }
 
 export default function ClientesPage() {
@@ -28,6 +28,8 @@ export default function ClientesPage() {
   const [filtro, setFiltro] = useState('')
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [detalleCliente, setDetalleCliente] = useState<Cliente | null>(null)
   const [formData, setFormData] = useState({
     nombreCompleto: '',
     telefono: '',
@@ -54,19 +56,62 @@ export default function ClientesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const response = await fetch('/api/clientes', {
-        method: 'POST',
+      const url = editingId ? `/api/clientes/${editingId}` : '/api/clientes'
+      const method = editingId ? 'PATCH' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
       if (response.ok) {
-        setFormData({ nombreCompleto: '', telefono: '', email: '', notas: '' })
+        resetForm()
         setMostrarForm(false)
         fetchClientes()
       }
     } catch (error) {
-      console.error('Error creating cliente:', error)
+      console.error('Error:', error)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({ nombreCompleto: '', telefono: '', email: '', notas: '' })
+    setEditingId(null)
+  }
+
+  const handleEdit = (cliente: Cliente) => {
+    setFormData({
+      nombreCompleto: cliente.nombreCompleto,
+      telefono: cliente.telefono || '',
+      email: cliente.email || '',
+      notas: cliente.notas || '',
+    })
+    setEditingId(cliente.id)
+    setMostrarForm(true)
+    setDetalleCliente(null)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este cliente? Se eliminarán también sus búsquedas.')) return
+    try {
+      const response = await fetch(`/api/clientes/${id}`, { method: 'DELETE' })
+      if (response.ok) {
+        fetchClientes()
+        setDetalleCliente(null)
+      }
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
+
+  const handleVerDetalle = async (cliente: Cliente) => {
+    try {
+      const response = await fetch(`/api/clientes/${cliente.id}`)
+      const data = await response.json()
+      setDetalleCliente(data)
+    } catch (error) {
+      console.error('Error:', error)
     }
   }
 
@@ -81,17 +126,72 @@ export default function ClientesPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900">Clientes</h1>
         <Button
-          onClick={() => setMostrarForm(!mostrarForm)}
+          onClick={() => { resetForm(); setMostrarForm(!mostrarForm); setDetalleCliente(null) }}
           className="bg-blue-600 hover:bg-blue-700"
         >
           + Nuevo Cliente
         </Button>
       </div>
 
+      {/* Detalle de Cliente */}
+      {detalleCliente && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-xl">{detalleCliente.nombreCompleto}</CardTitle>
+                <div className="text-sm text-slate-600 mt-1">
+                  {detalleCliente.telefono && <span className="mr-4">📞 {detalleCliente.telefono}</span>}
+                  {detalleCliente.email && <span>✉️ {detalleCliente.email}</span>}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleEdit(detalleCliente)}>
+                  Editar
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setDetalleCliente(null)}>
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {detalleCliente.notas && (
+              <p className="text-sm text-slate-700 mb-4">📝 {detalleCliente.notas}</p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg">
+                <h4 className="font-medium text-slate-700 mb-2">🔍 Búsquedas ({detalleCliente.busquedas?.length || 0})</h4>
+                {detalleCliente.busquedas?.length ? (
+                  <ul className="text-sm space-y-1">
+                    {detalleCliente.busquedas.slice(0, 5).map((b: any) => (
+                      <li key={b.id} className="flex justify-between">
+                        <span>{b.tipoPropiedad || 'Propiedad'}</span>
+                        <span className="text-xs px-2 py-0.5 bg-slate-100 rounded">{b.estado}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="text-sm text-slate-500">Sin búsquedas</p>}
+              </div>
+              <div className="bg-white p-4 rounded-lg">
+                <h4 className="font-medium text-slate-700 mb-2">💰 Operaciones ({detalleCliente.operaciones?.length || 0})</h4>
+                {detalleCliente.operaciones?.length ? (
+                  <ul className="text-sm space-y-1">
+                    {detalleCliente.operaciones.slice(0, 5).map((o: any) => (
+                      <li key={o.id}>{o.descripcion}</li>
+                    ))}
+                  </ul>
+                ) : <p className="text-sm text-slate-500">Sin operaciones</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {mostrarForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Crear Nuevo Cliente</CardTitle>
+            <CardTitle>{editingId ? 'Editar Cliente' : 'Crear Nuevo Cliente'}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -156,11 +256,11 @@ export default function ClientesPage() {
 
               <div className="flex gap-2">
                 <Button type="submit" className="bg-green-600 hover:bg-green-700">
-                  Guardar
+                  {editingId ? 'Actualizar' : 'Guardar'}
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => setMostrarForm(false)}
+                  onClick={() => { resetForm(); setMostrarForm(false) }}
                   variant="outline"
                 >
                   Cancelar
@@ -210,12 +310,26 @@ export default function ClientesPage() {
                     <TableCell>{cliente.telefono || '-'}</TableCell>
                     <TableCell>{cliente.email || '-'}</TableCell>
                     <TableCell className="text-right">
-                      <Link
-                        href={`/clientes/${cliente.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Ver
-                      </Link>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleVerDetalle(cliente)}
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => handleEdit(cliente)}
+                          className="text-amber-600 hover:underline text-sm"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(cliente.id)}
+                          className="text-red-600 hover:underline text-sm"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
