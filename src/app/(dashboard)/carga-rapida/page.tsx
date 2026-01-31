@@ -10,12 +10,24 @@ interface PropiedadRapida {
   tipo: string
   ubicacion: string
   zona: string
+  localidad: string
+  direccion: string
   precio: string
   moneda: string
   dormitorios: string
   ambientes: string
+  banos: string
+  superficie: string
+  descripcion: string
+  whatsapp: string
   urlMls: string
   aptaCredito: boolean
+}
+
+interface ErrorValidacion {
+  fila: number
+  campo: string
+  mensaje: string
 }
 
 const INITIAL_FORM: PropiedadRapida = {
@@ -23,10 +35,16 @@ const INITIAL_FORM: PropiedadRapida = {
   tipo: 'DEPARTAMENTO',
   ubicacion: '',
   zona: '',
+  localidad: '',
+  direccion: '',
   precio: '',
   moneda: 'USD',
   dormitorios: '',
   ambientes: '',
+  banos: '',
+  superficie: '',
+  descripcion: '',
+  whatsapp: '',
   urlMls: '',
   aptaCredito: false,
 }
@@ -34,9 +52,10 @@ const INITIAL_FORM: PropiedadRapida = {
 export default function CargaRapidaPage() {
   const [propiedades, setPropiedades] = useState<PropiedadRapida[]>([INITIAL_FORM])
   const [saving, setSaving] = useState(false)
-  const [resultado, setResultado] = useState<{ exito: number; error: number } | null>(null)
+  const [resultado, setResultado] = useState<{ exito: number; error: number; errores: ErrorValidacion[] } | null>(null)
   const [pasteMode, setPasteMode] = useState(false)
   const [pasteText, setPasteText] = useState('')
+  const [mostrarErrores, setMostrarErrores] = useState(false)
 
   const handleChange = (index: number, field: keyof PropiedadRapida, value: string | boolean) => {
     const nuevas = [...propiedades]
@@ -60,45 +79,150 @@ export default function CargaRapidaPage() {
     setPropiedades(nuevas)
   }
 
+  const generarDescripcionAutomatica = (prop: Partial<PropiedadRapida>): string => {
+    if (prop.descripcion && prop.descripcion.trim() !== '') {
+      return prop.descripcion
+    }
+    
+    const partes: string[] = []
+    if (prop.titulo && prop.titulo.trim()) partes.push(prop.titulo)
+    if (prop.tipo && prop.tipo.trim()) partes.push(prop.tipo)
+    if (prop.zona && prop.zona.trim()) partes.push(`en ${prop.zona}`)
+    if (prop.dormitorios && prop.dormitorios.trim()) partes.push(`${prop.dormitorios} dormitorios`)
+    if (prop.ambientes && prop.ambientes.trim()) partes.push(`${prop.ambientes} ambientes`)
+    if (prop.precio && prop.precio.trim() !== '') {
+      try {
+        const precioNum = parseInt(prop.precio)
+        if (!isNaN(precioNum)) {
+          partes.push(`$${precioNum.toLocaleString()} ${prop.moneda || 'USD'}`)
+        }
+      } catch (e) {
+        // Si hay error parseando precio, simplemente no agregarlo
+      }
+    }
+    
+    return partes.length > 0 ? partes.join(' - ') : 'Sin descripción'
+  }
+
+  const validarPropiedad = (prop: PropiedadRapida, index: number): ErrorValidacion[] => {
+    const errores: ErrorValidacion[] = []
+    
+    if (!prop.ubicacion || prop.ubicacion.trim() === '') {
+      errores.push({ fila: index + 1, campo: 'Ubicación', mensaje: 'La ubicación es obligatoria' })
+    }
+    
+    // La descripción se genera automáticamente si está vacía, así que no es error crítico
+    // Pero validamos otros campos
+    
+    if (prop.precio && prop.precio.trim() !== '' && isNaN(parseInt(prop.precio))) {
+      errores.push({ fila: index + 1, campo: 'Precio', mensaje: 'El precio debe ser un número válido' })
+    }
+    
+    if (prop.dormitorios && prop.dormitorios.trim() !== '' && isNaN(parseInt(prop.dormitorios))) {
+      errores.push({ fila: index + 1, campo: 'Dormitorios', mensaje: 'Debe ser un número válido' })
+    }
+    
+    if (prop.ambientes && prop.ambientes.trim() !== '' && isNaN(parseInt(prop.ambientes))) {
+      errores.push({ fila: index + 1, campo: 'Ambientes', mensaje: 'Debe ser un número válido' })
+    }
+    
+    if (prop.urlMls && prop.urlMls.trim() !== '' && !prop.urlMls.startsWith('http')) {
+      errores.push({ fila: index + 1, campo: 'URL MLS', mensaje: 'Debe ser una URL válida (comenzar con http)' })
+    }
+    
+    return errores
+  }
+
   const handleGuardarTodas = async () => {
     setSaving(true)
     setResultado(null)
+    setMostrarErrores(false)
+    
     let exito = 0
     let error = 0
+    const erroresValidacion: ErrorValidacion[] = []
+    const promesas: Promise<void>[] = []
 
-    for (const prop of propiedades) {
-      if (!prop.ubicacion) continue // Skip vacías
-
-      try {
-        const response = await fetch('/api/propiedades', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            titulo: prop.titulo || null,
-            tipo: prop.tipo,
-            ubicacion: prop.ubicacion,
-            zona: prop.zona || null,
-            precio: prop.precio ? parseInt(prop.precio) : null,
-            moneda: prop.moneda,
-            dormitorios: prop.dormitorios ? parseInt(prop.dormitorios) : null,
-            ambientes: prop.ambientes ? parseInt(prop.ambientes) : null,
-            urlMls: prop.urlMls || null,
-            aptaCredito: prop.aptaCredito,
-          }),
-        })
-
-        if (response.ok) {
-          exito++
-        } else {
-          error++
-        }
-      } catch (e) {
-        error++
+    // Validar y preparar todas las propiedades
+    propiedades.forEach((prop, index) => {
+      if (!prop.ubicacion || prop.ubicacion.trim() === '') {
+        return // Skip vacías
       }
-    }
+      
+      const errores = validarPropiedad(prop, index)
+      if (errores.length > 0) {
+        erroresValidacion.push(...errores)
+        error++
+        return
+      }
 
-    setResultado({ exito, error })
-    if (exito > 0) {
+      // Generar descripción automática si está vacía
+      const descripcionFinal = generarDescripcionAutomatica(prop)
+
+      // Crear promesa para guardar propiedad
+      const promesa = fetch('/api/propiedades', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titulo: prop.titulo || null,
+          tipo: prop.tipo,
+          ubicacion: prop.ubicacion,
+          zona: prop.zona || null,
+          localidad: prop.localidad || null,
+          direccion: prop.direccion || null,
+          precio: prop.precio && prop.precio.trim() !== '' ? parseInt(prop.precio) : null,
+          moneda: prop.moneda,
+          dormitorios: prop.dormitorios && prop.dormitorios.trim() !== '' ? parseInt(prop.dormitorios) : null,
+          ambientes: prop.ambientes && prop.ambientes.trim() !== '' ? parseInt(prop.ambientes) : null,
+          banos: prop.banos && prop.banos.trim() !== '' ? parseInt(prop.banos) : null,
+          superficie: prop.superficie && prop.superficie.trim() !== '' ? parseInt(prop.superficie) : null,
+          descripcion: descripcionFinal,
+          whatsapp: prop.whatsapp || null,
+          urlMls: prop.urlMls || null,
+          aptaCredito: prop.aptaCredito,
+        }),
+      })
+        .then(async response => {
+          if (response.ok) {
+            exito++
+          } else {
+            error++
+            try {
+              const data = await response.json()
+              erroresValidacion.push({
+                fila: index + 1,
+                campo: 'General',
+                mensaje: data.error || 'Error al guardar'
+              })
+            } catch {
+              erroresValidacion.push({
+                fila: index + 1,
+                campo: 'General',
+                mensaje: `Error ${response.status}: ${response.statusText}`
+              })
+            }
+          }
+        })
+        .catch((e) => {
+          error++
+          erroresValidacion.push({
+            fila: index + 1,
+            campo: 'General',
+            mensaje: 'Error de conexión: ' + (e.message || 'Error desconocido')
+          })
+        })
+      
+      promesas.push(promesa)
+    })
+
+    // Esperar a que todas las promesas se completen
+    await Promise.all(promesas)
+
+    setResultado({ exito, error, errores: erroresValidacion })
+    if (erroresValidacion.length > 0) {
+      setMostrarErrores(true)
+    }
+    if (exito > 0 && error === 0) {
       setPropiedades([INITIAL_FORM])
     }
     setSaving(false)
@@ -106,32 +230,54 @@ export default function CargaRapidaPage() {
 
   const procesarPaste = () => {
     // Formato esperado: cada línea es una propiedad
-    // Columnas separadas por TAB: titulo, tipo, ubicacion, zona, precio, dorms, url
-    const lineas = pasteText.trim().split('\n')
+    // Columnas separadas por TAB o coma
+    const lineas = pasteText.trim().split('\n').filter(l => l.trim())
     const nuevas: PropiedadRapida[] = []
 
     for (const linea of lineas) {
-      const cols = linea.split('\t')
-      if (cols.length >= 3) {
+      // Intentar detectar separador (TAB o coma)
+      const separador = linea.includes('\t') ? '\t' : ','
+      const cols = linea.split(separador).map(c => c.trim())
+      
+      if (cols.length >= 2) {
+        // Mapear columnas de forma flexible
         nuevas.push({
-          titulo: cols[0]?.trim() || '',
-          tipo: detectarTipo(cols[1]?.trim() || ''),
-          ubicacion: cols[2]?.trim() || '',
-          zona: cols[3]?.trim() || '',
-          precio: extraerPrecio(cols[4]?.trim() || ''),
-          moneda: detectarMoneda(cols[4]?.trim() || ''),
-          dormitorios: cols[5]?.trim() || '',
-          ambientes: cols[6]?.trim() || '',
-          urlMls: cols[7]?.trim() || '',
-          aptaCredito: (cols[8]?.toLowerCase().includes('si') || cols[8]?.toLowerCase().includes('yes')),
+          titulo: cols[0] || '',
+          tipo: detectarTipo(cols[1] || ''),
+          ubicacion: cols[2] || cols[1] || '', // Si no hay columna 2, usar la 1
+          zona: cols[3] || '',
+          localidad: cols[4] || '',
+          direccion: cols[5] || '',
+          precio: extraerPrecio(cols[6] || cols[3] || ''),
+          moneda: detectarMoneda(cols[6] || cols[3] || ''),
+          dormitorios: cols[7] || cols[4] || '',
+          ambientes: cols[8] || cols[5] || '',
+          banos: cols[9] || '',
+          superficie: cols[10] || '',
+          descripcion: cols[11] || cols[6] || '',
+          whatsapp: cols[12] || '',
+          urlMls: cols[13] || cols[7] || '',
+          aptaCredito: (cols[14]?.toLowerCase().includes('si') || 
+                       cols[14]?.toLowerCase().includes('yes') ||
+                       cols[8]?.toLowerCase().includes('si') ||
+                       cols[8]?.toLowerCase().includes('yes')),
         })
       }
     }
 
     if (nuevas.length > 0) {
-      setPropiedades(nuevas)
+      // Generar descripciones automáticas para las que no tienen
+      const nuevasConDescripcion = nuevas.map(prop => ({
+        ...prop,
+        descripcion: prop.descripcion || generarDescripcionAutomatica(prop)
+      }))
+      
+      setPropiedades(nuevasConDescripcion)
       setPasteMode(false)
       setPasteText('')
+      alert(`✅ ${nuevas.length} propiedades cargadas. Revisa y completa los campos obligatorios antes de guardar.`)
+    } else {
+      alert('⚠️ No se pudieron procesar los datos. Asegúrate de copiar las celdas correctamente desde Excel.')
     }
   }
 
@@ -182,7 +328,7 @@ export default function CargaRapidaPage() {
             disabled={saving}
             className="bg-green-600 hover:bg-green-700"
           >
-            {saving ? 'Guardando...' : `💾 Guardar ${propiedades.filter(p => p.ubicacion).length} propiedades`}
+            {saving ? 'Guardando...' : `💾 Guardar ${propiedades.filter(p => p.ubicacion && p.ubicacion.trim()).length} propiedades`}
           </Button>
         </div>
       </div>
@@ -190,10 +336,33 @@ export default function CargaRapidaPage() {
       {resultado && (
         <Card className={resultado.error > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}>
           <CardContent className="py-3">
-            <p className="font-medium">
-              ✅ {resultado.exito} propiedades guardadas
-              {resultado.error > 0 && <span className="text-red-600"> | ❌ {resultado.error} errores</span>}
-            </p>
+            <div className="flex justify-between items-center">
+              <p className="font-medium">
+                ✅ {resultado.exito} propiedades guardadas
+                {resultado.error > 0 && <span className="text-red-600"> | ❌ {resultado.error} errores</span>}
+              </p>
+              {resultado.errores && resultado.errores.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMostrarErrores(!mostrarErrores)}
+                >
+                  {mostrarErrores ? 'Ocultar' : 'Ver'} errores
+                </Button>
+              )}
+            </div>
+            {mostrarErrores && resultado.errores && resultado.errores.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h4 className="font-semibold text-sm text-red-700">Detalles de errores:</h4>
+                <ul className="text-sm text-red-600 space-y-1 max-h-40 overflow-y-auto">
+                  {resultado.errores.map((err, idx) => (
+                    <li key={idx}>
+                      Fila {err.fila}: <strong>{err.campo}</strong> - {err.mensaje}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -203,10 +372,16 @@ export default function CargaRapidaPage() {
         <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
             <CardTitle className="text-lg">📋 Pegar desde Excel</CardTitle>
-            <p className="text-sm text-slate-600">
-              Copia las celdas de Excel y pégalas aquí. Formato esperado (separado por TAB):<br/>
-              <code className="bg-white px-1 rounded">Titulo | Tipo | Ubicación | Zona | Precio | Dorms | Ambientes | URL | Apta Crédito</code>
+            <p className="text-sm text-slate-600 mb-2">
+              Copia las celdas de Excel y pégalas aquí. El sistema detecta automáticamente si están separadas por TAB o coma.
             </p>
+            <div className="bg-white p-3 rounded text-xs space-y-1">
+              <p className="font-semibold">Formato mínimo (3 columnas):</p>
+              <code>Título | Tipo | Ubicación</code>
+              <p className="font-semibold mt-2">Formato completo (15 columnas):</p>
+              <code>Título | Tipo | Ubicación | Zona | Localidad | Dirección | Precio | Dorms | Ambientes | Baños | Superficie | Descripción | WhatsApp | URL | Apta Crédito</code>
+              <p className="text-slate-500 mt-2">💡 Si faltan columnas, el sistema intentará completarlas automáticamente</p>
+            </div>
           </CardHeader>
           <CardContent>
             <textarea
@@ -242,6 +417,10 @@ export default function CargaRapidaPage() {
                 <th className="px-2 py-2 text-left min-w-[60px]">Mon</th>
                 <th className="px-2 py-2 text-left min-w-[60px]">Dorm</th>
                 <th className="px-2 py-2 text-left min-w-[60px]">Amb</th>
+                <th className="px-2 py-2 text-left min-w-[60px]">Baños</th>
+                <th className="px-2 py-2 text-left min-w-[80px]">Superf.</th>
+                <th className="px-2 py-2 text-left min-w-[200px]">Descripción *</th>
+                <th className="px-2 py-2 text-left min-w-[120px]">WhatsApp</th>
                 <th className="px-2 py-2 text-left min-w-[200px]">URL MLS</th>
                 <th className="px-2 py-2 text-center">Créd</th>
                 <th className="px-2 py-2 text-center">Acc</th>
@@ -330,6 +509,48 @@ export default function CargaRapidaPage() {
                   </td>
                   <td className="px-1 py-1">
                     <Input
+                      type="number"
+                      value={prop.banos}
+                      onChange={(e) => handleChange(index, 'banos', e.target.value)}
+                      placeholder="1"
+                      className="h-8 text-sm w-16"
+                    />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input
+                      type="number"
+                      value={prop.superficie}
+                      onChange={(e) => handleChange(index, 'superficie', e.target.value)}
+                      placeholder="65"
+                      className="h-8 text-sm w-20"
+                    />
+                  </td>
+                  <td className="px-1 py-1">
+                    <textarea
+                      value={prop.descripcion}
+                      onChange={(e) => handleChange(index, 'descripcion', e.target.value)}
+                      onBlur={(e) => {
+                        // Si está vacía, generar automáticamente
+                        if (!e.target.value.trim()) {
+                          const autoDesc = generarDescripcionAutomatica(prop)
+                          handleChange(index, 'descripcion', autoDesc)
+                        }
+                      }}
+                      placeholder="Descripción (se genera automáticamente si está vacía)"
+                      className="h-10 text-sm w-full px-2 py-1 border rounded resize-none"
+                      required
+                    />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input
+                      value={prop.whatsapp}
+                      onChange={(e) => handleChange(index, 'whatsapp', e.target.value)}
+                      placeholder="5491112345678"
+                      className="h-8 text-sm"
+                    />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input
                       value={prop.urlMls}
                       onChange={(e) => handleChange(index, 'urlMls', e.target.value)}
                       placeholder="https://..."
@@ -373,13 +594,40 @@ export default function CargaRapidaPage() {
       {/* Tips */}
       <Card className="bg-slate-50">
         <CardContent className="py-4">
-          <h3 className="font-medium mb-2">💡 Tips</h3>
-          <ul className="text-sm text-slate-600 space-y-1">
-            <li>• <strong>Tab</strong> para moverte entre campos</li>
-            <li>• <strong>Pegar desde Excel:</strong> Copia las celdas y usa el botón "Pegar desde Excel"</li>
-            <li>• <strong>Duplicar:</strong> Usa 📋 para copiar una fila y modificar solo lo necesario</li>
-            <li>• Solo se guardan las filas que tienen <strong>Ubicación</strong></li>
-          </ul>
+          <h3 className="font-medium mb-2">💡 Tips y Ayuda</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Atajos de teclado:</h4>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li>• <strong>Tab</strong> para moverte entre campos</li>
+                <li>• <strong>Enter</strong> en el último campo agrega una nueva fila</li>
+                <li>• <strong>Ctrl+V</strong> pega datos desde Excel</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Campos obligatorios:</h4>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li>• <strong>Ubicación</strong> - Dirección o ubicación de la propiedad</li>
+                <li>• <strong>Descripción</strong> - Se genera automáticamente si está vacía</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Funcionalidades:</h4>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li>• <strong>Pegar desde Excel:</strong> Copia las celdas y pégalas</li>
+                <li>• <strong>Duplicar:</strong> Usa 📋 para copiar una fila</li>
+                <li>• <strong>Eliminar:</strong> Usa 🗑️ para eliminar una fila</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-1">Validación automática:</h4>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li>• Precios y números se validan automáticamente</li>
+                <li>• URLs deben comenzar con "http"</li>
+                <li>• Errores se muestran antes de guardar</li>
+              </ul>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

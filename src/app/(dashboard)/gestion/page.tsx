@@ -10,7 +10,41 @@ interface Cliente {
   nombreCompleto: string
   telefono?: string
   email?: string
-  busquedas?: any[]
+  busquedas?: Busqueda[]
+}
+
+interface Busqueda {
+  id: string
+  clienteId: string
+  origen: string
+  presupuestoTexto?: string
+  presupuestoValor?: number
+  moneda?: string
+  tipoPropiedad?: string
+  ubicacionPreferida?: string
+  dormitoriosMin?: number
+  cochera?: string
+  finalidad?: string
+  estado: string
+  observaciones?: string
+  planillaRef?: string
+  createdAt: string
+  updatedAt: string
+  matchesPropiedades?: MatchBusquedaPropiedad[]
+  usuario?: {
+    id: string
+    nombre: string
+  }
+}
+
+interface MatchBusquedaPropiedad {
+  id: string
+  busquedaId: string
+  propiedadId: string
+  estado: string
+  notas?: string
+  fecha: string
+  propiedad: Propiedad
 }
 
 interface Propiedad {
@@ -56,15 +90,29 @@ interface Sugerencias {
 export default function GestionClientePage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
+  const [busquedas, setBusquedas] = useState<Busqueda[]>([])
   const [envios, setEnvios] = useState<Envio[]>([])
   const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([])
   const [sugerencias, setSugerencias] = useState<Sugerencias | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'envios' | 'comunicaciones' | 'sugerencias'>('sugerencias')
+  const [tab, setTab] = useState<'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias'>('busquedas')
   
   // Forms
+  const [mostrarFormBusqueda, setMostrarFormBusqueda] = useState(false)
   const [mostrarFormEnvio, setMostrarFormEnvio] = useState(false)
   const [mostrarFormCom, setMostrarFormCom] = useState(false)
+  const [formBusqueda, setFormBusqueda] = useState({
+    origen: 'ACTIVA',
+    presupuestoTexto: '',
+    presupuestoValor: '',
+    moneda: 'USD',
+    tipoPropiedad: '',
+    ubicacionPreferida: '',
+    dormitoriosMin: '',
+    cochera: '',
+    finalidad: '',
+    observaciones: '',
+  })
   const [formEnvio, setFormEnvio] = useState({ urlExterna: '', tituloExterno: '', mensaje: '' })
   const [formCom, setFormCom] = useState({ 
     tipo: 'WHATSAPP', 
@@ -79,6 +127,7 @@ export default function GestionClientePage() {
 
   useEffect(() => {
     if (clienteSeleccionado) {
+      fetchBusquedas()
       fetchEnvios()
       fetchComunicaciones()
       fetchSugerencias()
@@ -95,6 +144,22 @@ export default function GestionClientePage() {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchBusquedas = async () => {
+    if (!clienteSeleccionado) return
+    try {
+      const response = await fetch(`/api/busquedas?clienteId=${clienteSeleccionado.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setBusquedas(Array.isArray(data) ? data : [])
+      } else {
+        setBusquedas([])
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      setBusquedas([])
     }
   }
 
@@ -237,6 +302,61 @@ export default function GestionClientePage() {
     window.open(`https://wa.me/${telefono}`, '_blank')
   }
 
+  const handleCrearBusqueda = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!clienteSeleccionado) return
+    
+    try {
+      const payload: any = {
+        clienteId: clienteSeleccionado.id,
+        origen: formBusqueda.origen,
+        presupuestoTexto: formBusqueda.presupuestoTexto || null,
+        moneda: formBusqueda.moneda || null,
+        tipoPropiedad: formBusqueda.tipoPropiedad || null,
+        ubicacionPreferida: formBusqueda.ubicacionPreferida || null,
+        dormitoriosMin: formBusqueda.dormitoriosMin ? parseInt(formBusqueda.dormitoriosMin) : null,
+        cochera: formBusqueda.cochera || null,
+        finalidad: formBusqueda.finalidad || null,
+        observaciones: formBusqueda.observaciones || null,
+      }
+
+      if (formBusqueda.presupuestoValor) {
+        payload.presupuestoValor = parseInt(formBusqueda.presupuestoValor)
+      }
+
+      const response = await fetch('/api/busquedas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        setFormBusqueda({
+          origen: 'ACTIVA',
+          presupuestoTexto: '',
+          presupuestoValor: '',
+          moneda: 'USD',
+          tipoPropiedad: '',
+          ubicacionPreferida: '',
+          dormitoriosMin: '',
+          cochera: '',
+          finalidad: '',
+          observaciones: '',
+        })
+        setMostrarFormBusqueda(false)
+        fetchBusquedas()
+        fetchSugerencias() // Actualizar sugerencias con la nueva búsqueda
+        alert('Búsqueda creada correctamente')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Error al crear búsqueda')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error al crear búsqueda')
+    }
+  }
+
   if (loading) return <div className="text-center py-8">Cargando...</div>
 
   return (
@@ -308,6 +428,10 @@ export default function GestionClientePage() {
                   {/* Stats */}
                   <div className="flex gap-6 mt-4">
                     <div className="text-center">
+                      <div className="text-2xl font-bold">{busquedas.length}</div>
+                      <div className="text-xs text-blue-100">Búsquedas</div>
+                    </div>
+                    <div className="text-center">
                       <div className="text-2xl font-bold">{envios.length}</div>
                       <div className="text-xs text-blue-100">Props Enviadas</div>
                     </div>
@@ -324,7 +448,14 @@ export default function GestionClientePage() {
               </Card>
 
               {/* Tabs */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={tab === 'busquedas' ? 'default' : 'outline'}
+                  onClick={() => setTab('busquedas')}
+                  size="sm"
+                >
+                  🔍 Búsquedas ({busquedas.length})
+                </Button>
                 <Button
                   variant={tab === 'sugerencias' ? 'default' : 'outline'}
                   onClick={() => setTab('sugerencias')}
@@ -347,6 +478,235 @@ export default function GestionClientePage() {
                   💬 Historial
                 </Button>
               </div>
+
+              {/* Tab: Búsquedas */}
+              {tab === 'busquedas' && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>🔍 Búsquedas del Cliente</CardTitle>
+                      <Button 
+                        size="sm" 
+                        onClick={() => setMostrarFormBusqueda(!mostrarFormBusqueda)}
+                        className="bg-blue-600"
+                      >
+                        + Nueva Búsqueda
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Form nueva búsqueda */}
+                    {mostrarFormBusqueda && (
+                      <form onSubmit={handleCrearBusqueda} className="mb-4 p-4 bg-slate-50 rounded-lg space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Origen *</label>
+                            <select
+                              value={formBusqueda.origen}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, origen: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                              required
+                            >
+                              <option value="ACTIVA">Activa</option>
+                              <option value="PERSONALIZADA">Personalizada</option>
+                              <option value="CALIFICADA_EFECTIVO">Calificada (Efectivo)</option>
+                              <option value="CALIFICADA_CREDITO">Calificada (Crédito)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Tipo de Propiedad</label>
+                            <select
+                              value={formBusqueda.tipoPropiedad}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, tipoPropiedad: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                            >
+                              <option value="">Seleccionar</option>
+                              <option value="DEPARTAMENTO">Departamento</option>
+                              <option value="CASA">Casa</option>
+                              <option value="OTRO">Otro</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Presupuesto (texto)</label>
+                            <Input
+                              value={formBusqueda.presupuestoTexto}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, presupuestoTexto: e.target.value })}
+                              placeholder="Ej: 75 MIL DOLARES"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Presupuesto (valor)</label>
+                            <Input
+                              type="number"
+                              value={formBusqueda.presupuestoValor}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, presupuestoValor: e.target.value })}
+                              placeholder="75000"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Moneda</label>
+                            <select
+                              value={formBusqueda.moneda}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, moneda: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                            >
+                              <option value="USD">USD</option>
+                              <option value="ARS">ARS</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Ubicación Preferida</label>
+                            <Input
+                              value={formBusqueda.ubicacionPreferida}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, ubicacionPreferida: e.target.value })}
+                              placeholder="Zona/Barrio"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Dormitorios Mínimo</label>
+                            <Input
+                              type="number"
+                              value={formBusqueda.dormitoriosMin}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, dormitoriosMin: e.target.value })}
+                              placeholder="2"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Cochera</label>
+                            <Input
+                              value={formBusqueda.cochera}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, cochera: e.target.value })}
+                              placeholder="SI / NO"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Finalidad</label>
+                            <select
+                              value={formBusqueda.finalidad}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, finalidad: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                            >
+                              <option value="">Seleccionar</option>
+                              <option value="INVERSION">Inversión</option>
+                              <option value="VIVIENDA">Vivienda</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Observaciones</label>
+                          <textarea
+                            value={formBusqueda.observaciones}
+                            onChange={(e) => setFormBusqueda({ ...formBusqueda, observaciones: e.target.value })}
+                            placeholder="Notas adicionales..."
+                            className="w-full px-3 py-2 border rounded-md min-h-[80px]"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="submit" size="sm" className="bg-green-600">Guardar</Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => setMostrarFormBusqueda(false)}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Lista de búsquedas */}
+                    {busquedas.length === 0 ? (
+                      <p className="text-slate-500 text-center py-4">
+                        No hay búsquedas registradas. Crea una nueva búsqueda para comenzar.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {busquedas.map((busqueda) => (
+                          <div key={busqueda.id} className="p-4 border rounded-lg bg-white">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">
+                                    {busqueda.tipoPropiedad || 'Propiedad'} - {busqueda.presupuestoTexto || 'Sin presupuesto'}
+                                  </h3>
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    busqueda.estado === 'NUEVO' ? 'bg-blue-100 text-blue-700' :
+                                    busqueda.estado === 'CALIFICADO' ? 'bg-purple-100 text-purple-700' :
+                                    busqueda.estado === 'VISITA' ? 'bg-orange-100 text-orange-700' :
+                                    busqueda.estado === 'RESERVA' ? 'bg-green-100 text-green-700' :
+                                    busqueda.estado === 'CERRADO' ? 'bg-gray-100 text-gray-700' :
+                                    'bg-slate-100 text-slate-700'
+                                  }`}>
+                                    {busqueda.estado}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-slate-600 space-y-1">
+                                  <p><strong>Origen:</strong> {busqueda.origen}</p>
+                                  {busqueda.ubicacionPreferida && (
+                                    <p><strong>Zona:</strong> {busqueda.ubicacionPreferida}</p>
+                                  )}
+                                  {busqueda.dormitoriosMin && (
+                                    <p><strong>Dormitorios mín:</strong> {busqueda.dormitoriosMin}</p>
+                                  )}
+                                  {busqueda.observaciones && (
+                                    <p><strong>Observaciones:</strong> {busqueda.observaciones}</p>
+                                  )}
+                                  <p className="text-xs text-slate-500">
+                                    Creada: {new Date(busqueda.createdAt).toLocaleDateString('es-AR')}
+                                    {busqueda.usuario && ` • Por: ${busqueda.usuario.nombre}`}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Propiedades relacionadas */}
+                            {busqueda.matchesPropiedades && busqueda.matchesPropiedades.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <h4 className="font-medium text-sm mb-2 text-slate-700">
+                                  Propiedades Sugeridas ({busqueda.matchesPropiedades.length})
+                                </h4>
+                                <div className="space-y-2">
+                                  {busqueda.matchesPropiedades.slice(0, 5).map((match) => (
+                                    <div key={match.id} className="p-2 bg-slate-50 rounded text-sm">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                          <div className="font-medium">
+                                            {match.propiedad.titulo || match.propiedad.ubicacion}
+                                          </div>
+                                          <div className="text-xs text-slate-600">
+                                            {match.propiedad.tipo} • {match.propiedad.zona || match.propiedad.ubicacion}
+                                            {match.propiedad.dormitorios && ` • ${match.propiedad.dormitorios} dorm`}
+                                            {match.propiedad.precio && ` • ${match.propiedad.moneda} ${match.propiedad.precio.toLocaleString()}`}
+                                          </div>
+                                        </div>
+                                        <span className={`text-xs px-2 py-0.5 rounded ${
+                                          match.estado === 'ENVIADA' ? 'bg-green-100 text-green-700' :
+                                          match.estado === 'VISITA' ? 'bg-blue-100 text-blue-700' :
+                                          match.estado === 'DESCARTADA' ? 'bg-red-100 text-red-700' :
+                                          'bg-slate-200 text-slate-700'
+                                        }`}>
+                                          {match.estado}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {busqueda.matchesPropiedades.length > 5 && (
+                                    <p className="text-xs text-slate-500 text-center">
+                                      ... y {busqueda.matchesPropiedades.length - 5} más
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Tab: Sugerencias */}
               {tab === 'sugerencias' && (

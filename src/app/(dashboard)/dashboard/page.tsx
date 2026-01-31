@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Stats {
@@ -11,9 +12,17 @@ interface Stats {
   cerrados: number
   comisionesTotales: number
   agente: string
+  isAdmin: boolean
+}
+
+interface CurrentUser {
+  id: string
+  nombre: string
+  rol: string
 }
 
 export default function Dashboard() {
+  const router = useRouter()
   const [stats, setStats] = useState<Stats>({
     buscadasActivas: 0,
     buscadasCalificadas: 0,
@@ -21,80 +30,118 @@ export default function Dashboard() {
     reservas: 0,
     cerrados: 0,
     comisionesTotales: 0,
-    agente: 'Sin agente',
+    agente: 'Cargando...',
+    isAdmin: false,
   })
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
   useEffect(() => {
-    // Re-fetch cuando cambie el agente seleccionado
-    const interval = setInterval(fetchStats, 1000)
-    fetchStats()
-    return () => clearInterval(interval)
+    fetchCurrentUser()
   }, [])
 
-  const fetchStats = async () => {
+  useEffect(() => {
+    if (currentUser) {
+      fetchStats()
+      // Actualizar cada 30 segundos
+      const interval = setInterval(fetchStats, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [currentUser])
+
+  const fetchCurrentUser = async () => {
     try {
-      // Obtener el agente seleccionado del localStorage
-      const selectedUserId = localStorage.getItem('selectedUserId')
-      
-      // Obtener datos del agente si existe
-      let agenteNombre = 'Sin agente'
-      if (selectedUserId) {
-        try {
-          const userResponse = await fetch(`/api/usuarios/${selectedUserId}`)
-          if (userResponse.ok) {
-            const user = await userResponse.json()
-            agenteNombre = user.nombre
-          }
-        } catch (e) {
-          console.error('Error fetching user:', e)
+      const res = await fetch('/api/auth/me')
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentUser(data.user)
+      } else {
+        // Si no está autenticado, redirigir al login
+        if (res.status === 401) {
+          router.push('/login')
+        } else {
+          console.error('Error obteniendo usuario actual:', res.status)
         }
+        setLoading(false)
+      }
+    } catch (error) {
+      console.error('Error obteniendo usuario actual:', error)
+      // En caso de error de red, también redirigir al login
+      router.push('/login')
+      setLoading(false)
+    }
+  }
+
+  const fetchStats = async () => {
+    if (!currentUser) return
+
+    try {
+      const response = await fetch('/api/dashboard/stats')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Error al obtener estadísticas:', response.status, errorData)
+        // Si es error 401, redirigir al login
+        if (response.status === 401) {
+          router.push('/login')
+          return
+        }
+        // Para otros errores, mostrar valores por defecto
+        setStats({
+          buscadasActivas: 0,
+          buscadasCalificadas: 0,
+          visitas: 0,
+          reservas: 0,
+          cerrados: 0,
+          comisionesTotales: 0,
+          agente: currentUser.nombre,
+          isAdmin: currentUser.rol === 'admin',
+        })
+        setLoading(false)
+        return
       }
 
-      // Construir URL con filtro de usuario si existe
-      const busquedasUrl = selectedUserId 
-        ? `/api/busquedas?usuarioId=${selectedUserId}`
-        : '/api/busquedas'
-      
-      const operacionesUrl = selectedUserId
-        ? `/api/operaciones?usuarioId=${selectedUserId}`
-        : '/api/operaciones'
+      const data = await response.json()
 
-      const [busquedas, operaciones] = await Promise.all([
-        fetch(busquedasUrl).then((r) => r.json()),
-        fetch(operacionesUrl).then((r) => r.json()),
-      ])
-
-      const estados = {
-        NUEVO: 0,
-        CALIFICADO: 0,
-        VISITA: 0,
-        RESERVA: 0,
-        CERRADO: 0,
+      // Validar que la respuesta tenga la estructura esperada
+      if (!data.busquedas || !data.comisiones) {
+        console.error('Respuesta inválida del servidor:', data)
+        setStats({
+          buscadasActivas: 0,
+          buscadasCalificadas: 0,
+          visitas: 0,
+          reservas: 0,
+          cerrados: 0,
+          comisionesTotales: 0,
+          agente: currentUser.nombre,
+          isAdmin: currentUser.rol === 'admin',
+        })
+        setLoading(false)
+        return
       }
-
-      busquedas.forEach((b: any) => {
-        if (estados[b.estado as keyof typeof estados] !== undefined) {
-          estados[b.estado as keyof typeof estados]++
-        }
-      })
-
-      const comisionesTotal = operaciones.reduce(
-        (sum: number, op: any) => sum + (op.comisionTotal || 0),
-        0
-      )
 
       setStats({
-        buscadasActivas: estados.NUEVO,
-        buscadasCalificadas: estados.CALIFICADO,
-        visitas: estados.VISITA,
-        reservas: estados.RESERVA,
-        cerrados: estados.CERRADO,
-        comisionesTotales: comisionesTotal,
-        agente: agenteNombre,
+        buscadasActivas: data.busquedas?.porEstado?.NUEVO || 0,
+        buscadasCalificadas: data.busquedas?.porEstado?.CALIFICADO || 0,
+        visitas: data.busquedas?.porEstado?.VISITA || 0,
+        reservas: data.busquedas?.porEstado?.RESERVA || 0,
+        cerrados: data.busquedas?.porEstado?.CERRADO || 0,
+        comisionesTotales: data.comisiones?.total || 0,
+        agente: data.agente?.nombre || currentUser.nombre,
+        isAdmin: currentUser.rol === 'admin',
       })
     } catch (error) {
       console.error('Error fetching stats:', error)
+      // En caso de error, mostrar valores por defecto
+      setStats({
+        buscadasActivas: 0,
+        buscadasCalificadas: 0,
+        visitas: 0,
+        reservas: 0,
+        cerrados: 0,
+        comisionesTotales: 0,
+        agente: currentUser.nombre,
+        isAdmin: currentUser.rol === 'admin',
+      })
     } finally {
       setLoading(false)
     }
@@ -107,7 +154,9 @@ export default function Dashboard() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
         <div className="text-right">
-          <p className="text-sm text-slate-600">Agente:</p>
+          <p className="text-sm text-slate-600">
+            {stats.isAdmin ? 'Administrador' : 'Agente'}:
+          </p>
           <p className="text-lg font-semibold text-blue-600">{stats.agente}</p>
         </div>
       </div>

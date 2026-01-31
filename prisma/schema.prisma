@@ -31,6 +31,7 @@ model Usuario {
   clientes          Cliente[]
   operaciones       Operacion[]
   sesiones          Session[]
+  busquedasCreadas  Busqueda[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -104,12 +105,18 @@ model Busqueda {
   observaciones         String?
   planillaRef           String?   // Referencia a la planilla original
   
+  // Agente que creó la búsqueda
+  createdBy             String?
+  usuario               Usuario?  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  
   // Relaciones
   matchesPropiedades    MatchBusquedaPropiedad[]
   tareas                Tarea[]
   
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+  
+  @@index([createdBy])
 }
 
 // PROPIEDAD: Inventario/oportunidades inmobiliarias
@@ -144,6 +151,9 @@ model Propiedad {
   usuarioId         String?
   usuario           Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   
+  // Estado de la propiedad
+  estado            String    @default("BORRADOR") // BORRADOR | EN_ANALISIS | APROBADA | DESCARTADA
+  
   // Relaciones
   matches           MatchBusquedaPropiedad[]
   envios            EnvioPropiedad[]
@@ -156,6 +166,7 @@ model Propiedad {
   @@index([aptaCredito])
   @@index([zona])
   @@index([usuarioId])
+  @@index([estado])
 }
 
 // MATCH: Relación entre búsqueda y propiedad sugerida

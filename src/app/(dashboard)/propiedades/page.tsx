@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,18 +32,30 @@ interface Propiedad {
   whatsapp?: string
   urlMls?: string
   aptaCredito: boolean
+  estado?: string
+  usuarioId?: string
+  usuario?: { id: string; nombre: string } | null
   createdAt: string
 }
 
+interface CurrentUser {
+  id: string
+  nombre: string
+  rol: string
+}
+
 const TIPOS_PROPIEDAD = ['DEPARTAMENTO', 'CASA', 'TERRENO', 'LOCAL', 'OFICINA', 'OTRO']
+const ESTADOS_PROPIEDAD = ['BORRADOR', 'EN_ANALISIS', 'APROBADA', 'DESCARTADA']
 
 export default function PropiedadesPage() {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [filtro, setFiltro] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('')
   const [soloAptaCredito, setSoloAptaCredito] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [formData, setFormData] = useState({
     titulo: '',
     tipo: 'DEPARTAMENTO',
@@ -60,17 +73,51 @@ export default function PropiedadesPage() {
     whatsapp: '',
     urlMls: '',
     aptaCredito: false,
+    estado: 'BORRADOR',
   })
 
   useEffect(() => {
-    fetchPropiedades()
-  }, [soloAptaCredito])
+    fetchCurrentUser()
+  }, [])
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchPropiedades()
+    }
+  }, [soloAptaCredito, filtroEstado, currentUser])
+
+  const fetchCurrentUser = async () => {
+    try {
+      const res = await fetch('/api/auth/me')
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentUser(data.user)
+      } else {
+        // Si no está autenticado, redirigir al login
+        if (res.status === 401) {
+          router.push('/login')
+        } else {
+          console.error('Error obteniendo usuario actual:', res.status)
+        }
+        setLoading(false)
+      }
+    } catch (error) {
+      console.error('Error obteniendo usuario actual:', error)
+      // En caso de error de red, también redirigir al login
+      router.push('/login')
+      setLoading(false)
+    }
+  }
 
   const fetchPropiedades = async () => {
+    if (!currentUser) return
+
     try {
-      const url = soloAptaCredito
-        ? '/api/propiedades?aptaCredito=true'
-        : '/api/propiedades'
+      const params = new URLSearchParams()
+      if (soloAptaCredito) params.append('aptaCredito', 'true')
+      if (filtroEstado) params.append('estado', filtroEstado)
+      
+      const url = `/api/propiedades?${params.toString()}`
       const response = await fetch(url)
       const data = await response.json()
       setPropiedades(data)
@@ -99,6 +146,7 @@ export default function PropiedadesPage() {
       whatsapp: '',
       urlMls: '',
       aptaCredito: false,
+      estado: 'BORRADOR',
     })
     setEditingId(null)
   }
@@ -135,6 +183,18 @@ export default function PropiedadesPage() {
   }
 
   const handleEdit = (prop: Propiedad) => {
+    // Verificar permisos: agente solo puede editar propiedades en BORRADOR
+    if (currentUser?.rol === 'agente' && prop.estado && prop.estado !== 'BORRADOR') {
+      alert('Solo puedes editar propiedades en estado BORRADOR')
+      return
+    }
+
+    // Verificar que es el dueño (si es agente)
+    if (currentUser?.rol === 'agente' && prop.usuarioId !== currentUser.id) {
+      alert('No tienes permiso para editar esta propiedad')
+      return
+    }
+
     setFormData({
       titulo: prop.titulo || '',
       tipo: prop.tipo,
@@ -152,9 +212,25 @@ export default function PropiedadesPage() {
       whatsapp: prop.whatsapp || '',
       urlMls: prop.urlMls || '',
       aptaCredito: prop.aptaCredito,
+      estado: prop.estado || 'BORRADOR',
     })
     setEditingId(prop.id)
     setMostrarForm(true)
+  }
+
+  const getEstadoColor = (estado?: string) => {
+    switch (estado) {
+      case 'BORRADOR':
+        return 'bg-slate-200 text-slate-700'
+      case 'EN_ANALISIS':
+        return 'bg-yellow-200 text-yellow-800'
+      case 'APROBADA':
+        return 'bg-green-200 text-green-800'
+      case 'DESCARTADA':
+        return 'bg-red-200 text-red-800'
+      default:
+        return 'bg-slate-200 text-slate-700'
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -347,6 +423,23 @@ export default function PropiedadesPage() {
                 </label>
               </div>
 
+              {currentUser?.rol === 'admin' && editingId && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                  <select
+                    value={formData.estado || 'BORRADOR'}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                  >
+                    {ESTADOS_PROPIEDAD.map((estado) => (
+                      <option key={estado} value={estado}>
+                        {estado}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Button type="submit" className="bg-green-600 hover:bg-green-700">
                   {editingId ? 'Actualizar' : 'Guardar'}
@@ -369,6 +462,18 @@ export default function PropiedadesPage() {
           onChange={(e) => setFiltro(e.target.value)}
           className="max-w-md"
         />
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="px-3 py-2 border border-slate-300 rounded-md"
+        >
+          <option value="">Todos los estados</option>
+          {ESTADOS_PROPIEDAD.map((estado) => (
+            <option key={estado} value={estado}>
+              {estado}
+            </option>
+          ))}
+        </select>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -397,6 +502,7 @@ export default function PropiedadesPage() {
                 <TableHead>Tipo</TableHead>
                 <TableHead>Precio</TableHead>
                 <TableHead>Amb/Dorm</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead className="text-center">Apta Crédito</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -404,7 +510,7 @@ export default function PropiedadesPage() {
             <TableBody>
               {filtrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     No hay propiedades
                   </TableCell>
                 </TableRow>
@@ -428,6 +534,11 @@ export default function PropiedadesPage() {
                     <TableCell>
                       {propiedad.ambientes || '-'} amb / {propiedad.dormitorios || '-'} dorm
                     </TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(propiedad.estado)}`}>
+                        {propiedad.estado || 'BORRADOR'}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-center">
                       {propiedad.aptaCredito ? (
                         <span className="text-green-600 font-semibold">✓</span>
@@ -450,6 +561,7 @@ export default function PropiedadesPage() {
                         <button
                           onClick={() => handleEdit(propiedad)}
                           className="text-amber-600 hover:underline text-sm"
+                          disabled={currentUser?.rol === 'agente' && propiedad.estado !== 'BORRADOR' && propiedad.estado !== undefined}
                         >
                           Editar
                         </button>
