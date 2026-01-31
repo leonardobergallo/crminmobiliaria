@@ -48,6 +48,7 @@ const TIPOS_PROPIEDAD = ['DEPARTAMENTO', 'CASA', 'TERRENO', 'LOCAL', 'OFICINA', 
 const ESTADOS_PROPIEDAD = ['BORRADOR', 'EN_ANALISIS', 'APROBADA', 'DESCARTADA']
 
 export default function PropiedadesPage() {
+  const router = useRouter()
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [filtro, setFiltro] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
