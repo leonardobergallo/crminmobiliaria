@@ -170,20 +170,8 @@ export async function importarComisiones(filePath: string) {
       create: {
         nro,
         descripcion,
-        precioReal: isNaN(precioReal) ? null : precioReal,
-        comisionTotal: isNaN(comisionTotal) ? null : comisionTotal,
-        totalComisionEquipo: parseFloat(
-          (row['TOTAL-COMISION-EQUIPO'] as string) || '0'
-        ) || null,
-        comisionEquipoUnaPunta: parseFloat(
-          (row['COMISION-EQUIPO(UNA PUNTAS)'] as string) || '0'
-        ) || null,
-        comisionLeoDosPuntas: parseFloat(
-          (row['COMISION-LEO(DOS PUNTAS)'] as string) || '0'
-        ) || null,
-        comisionLeoUnaPunta: parseFloat(
-          (row['COMISION-LEO(UNA PUNTAS)'] as string) || '0'
-        ) || null,
+        precioVenta: isNaN(precioReal) ? null : precioReal,
+        comisionBruta: isNaN(comisionTotal) ? null : comisionTotal,
         observaciones: (row['OBSERVACIONES'] as string) || null,
       },
       update: {},
