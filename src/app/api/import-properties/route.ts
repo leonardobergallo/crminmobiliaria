@@ -46,12 +46,20 @@ export async function POST(req: NextRequest) {
           const zona = (row['zona'] as string) || '';
           const descripcion = (row['descripcion'] as string) || '';
           let precio = row['precio'];
-          const monedaInput = (row['moneda'] as string) || 'USD';
+          const monedaInput = (row['moneda'] as string) || 'ARS'; // Default requested ARS
+          
+          // Mapeo de columnas requeridas y opcionales (Español/Inglés)
           const ambientes = parseInt((row['ambientes'] as string) || '0') || 0;
-          const banos = parseInt((row['banos'] as string) || '0') || 0;
-          const superficie = parseInt((row['superficie'] as string) || '0') || 0;
-          const direccion = (row['direccion'] as string) || '';
-          const whatsapp = (row['whatsapp'] as string) || '';
+          const banos = parseInt((row['banos'] || row['bathrooms'] || row['banyos'] || '0') as string) || 0;
+          const superficie = parseInt((row['superficie'] || row['area_m2'] || row['m2'] || '0') as string) || 0;
+          const direccion = (row['direccion'] || row['address'] || row['ubicacion'] || '') as string;
+          
+          // Contacto prioritario: whatsapp > telefono > celular
+          const whatsapp = (row['whatsapp'] || row['telefono'] || row['celular'] || '') as string;
+          
+          // TODO: Manejar fotos y servicio_profesional si se agregan al esquema
+          // const fotoPrincipal = row['foto_principal'];
+          // const servicioProfesional = row['servicio_profesional'];
 
           // Convertir precio a número
           let precioNumerico = 0;

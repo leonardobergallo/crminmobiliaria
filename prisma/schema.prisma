@@ -10,10 +10,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// INMOBILIARIA: Entidad principal que agrupa usuarios, clientes y propiedades
+model Inmobiliaria {
+  id                String    @id @default(cuid())
+  nombre            String    @unique
+  slug              String    @unique // URL-friendly: "carli-esquivel", "solar"
+  logo              String?   // URL del logo
+  whatsapp          String?   // WhatsApp principal
+  email             String?   // Email de contacto
+  direccion         String?   // Dirección física
+  activa            Boolean   @default(true)
+  
+  // Configuración visual
+  colorPrimario     String?   // Color de marca (hex)
+  
+  // Configuración de comisiones
+  // Solar: comisionVenta=3%, comisionAgente=50% (agente recibe 50% del 3%)
+  // RE/MAX: comisionVenta=6%, comisionAgente=20% (agente recibe 20% del 6%)
+  comisionVenta     Float     @default(3)    // % sobre precio de venta
+  comisionAgente    Float     @default(50)   // % que recibe el agente de la comisión
+  
+  // Relaciones
+  usuarios          Usuario[]
+  clientes          Cliente[]
+  propiedades       Propiedad[]
+  operaciones       Operacion[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
 // USUARIO/AGENTE: Información del agente inmobiliario
 model Usuario {
   id                String    @id @default(cuid())
-  nombre            String    @unique
+  nombre            String
   email             String?   @unique
   telefono          String?
   avatar            String?   // URL del avatar
@@ -21,10 +51,14 @@ model Usuario {
   
   // Autenticación
   password          String?   // Hash de la contraseña
-  rol               String    @default("agente") // "admin" | "agente" | "supervisor"
+  rol               String    @default("agente") // "superadmin" | "admin" | "agente" | "supervisor"
   
   // Sesión
   lastLogin         DateTime?
+  
+  // Relación con inmobiliaria (obligatoria excepto superadmin)
+  inmobiliariaId    String?
+  inmobiliaria      Inmobiliaria? @relation(fields: [inmobiliariaId], references: [id], onDelete: SetNull)
   
   // Relaciones
   propiedades       Propiedad[]
@@ -35,6 +69,9 @@ model Usuario {
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  
+  @@unique([nombre, inmobiliariaId])
+  @@index([inmobiliariaId])
 }
 
 // SESSION: Sesiones activas de usuarios
@@ -58,6 +95,10 @@ model Cliente {
   email             String?
   notas             String?
   
+  // Relación con inmobiliaria
+  inmobiliariaId    String?
+  inmobiliaria      Inmobiliaria? @relation(fields: [inmobiliariaId], references: [id], onDelete: SetNull)
+  
   // Relación con agente
   usuarioId         String?
   usuario           Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
@@ -72,7 +113,8 @@ model Cliente {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   
-  @@unique([nombreCompleto, usuarioId])
+  @@unique([nombreCompleto, inmobiliariaId])
+  @@index([inmobiliariaId])
 }
 
 // BUSQUEDA: Lead comprador / Búsqueda activa de cliente
@@ -140,12 +182,24 @@ model Propiedad {
   ambientes         Int?      // Número total de ambientes
   banos             Int?      // Número de baños
   superficie        Int?      // Superficie en m²
+  superficieCubierta Int?     // Superficie cubierta en m²
+  cochera           Boolean   @default(false)
+  patio             Boolean   @default(false)
+  pileta            Boolean   @default(false)
   whatsapp          String?   // Contacto WhatsApp
+  
+  // Imágenes
+  imagenPrincipal   String?   // URL de la imagen principal
+  imagenes          String[]  // Array de URLs de imágenes adicionales
   
   // Enlaces y fuentes
   urlMls            String?   // URL a MLS/Inmobiliaria
   fuente            String?   // APTA_CREDITO | OTRA
   aptaCredito       Boolean   @default(false)
+  
+  // Relación con inmobiliaria
+  inmobiliariaId    String?
+  inmobiliaria      Inmobiliaria? @relation(fields: [inmobiliariaId], references: [id], onDelete: SetNull)
   
   // Relación con agente
   usuarioId         String?
@@ -157,15 +211,17 @@ model Propiedad {
   // Relaciones
   matches           MatchBusquedaPropiedad[]
   envios            EnvioPropiedad[]
+  tareas            Tarea[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   
-  @@unique([direccion, tipo, usuarioId])
+  @@unique([direccion, tipo, inmobiliariaId])
   @@index([localidad])
   @@index([aptaCredito])
   @@index([zona])
   @@index([usuarioId])
+  @@index([inmobiliariaId])
   @@index([estado])
 }
 
@@ -197,6 +253,9 @@ model Tarea {
   
   busquedaId        String?
   busqueda          Busqueda? @relation(fields: [busquedaId], references: [id], onDelete: SetNull)
+
+  propiedadId       String?
+  propiedad         Propiedad? @relation(fields: [propiedadId], references: [id], onDelete: SetNull)
   
   // Contenido
   titulo            String
@@ -204,12 +263,14 @@ model Tarea {
   fechaVencimiento  DateTime?
   estado            String    @default("PENDIENTE") // PENDIENTE | HECHA
   prioridad         String    @default("MEDIA") // BAJA | MEDIA | ALTA
+  tipo              String    @default("GENERAL") // GENERAL | VISITA | LLAMADA
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   
   @@index([clienteId])
   @@index([busquedaId])
+  @@index([propiedadId])
   @@index([estado])
 }
 
@@ -221,23 +282,36 @@ model Operacion {
   clienteId                 String?
   cliente                   Cliente?  @relation(fields: [clienteId], references: [id], onDelete: SetNull)
   
+  // Relación con inmobiliaria
+  inmobiliariaId            String?
+  inmobiliaria              Inmobiliaria? @relation(fields: [inmobiliariaId], references: [id], onDelete: SetNull)
+  
   // Relación con agente
   usuarioId                 String?
   usuario                   Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   
   // Descripción de la operación
   descripcion               String
-  precioReal                Int?      // Precio de venta
+  direccion                 String?   // Dirección de la propiedad vendida
+  precioVenta               Int?      // Precio de venta en USD
   
-  // Comisiones (6% total según estructura REMAX)
-  comisionTotal             Float?    // 6% total
-  totalComisionEquipo       Float?    // 45% del total (de la comisión)
-  comisionEquipoUnaPunta    Float?    // 50% de equipo (una punta)
-  comisionLeoDosPuntas      Float?    // 20% por dos puntas
-  comisionLeoUnaPunta       Float?    // 20% por una punta
+  // Sistema de Puntas Argentino
+  // UNA PUNTA: 3% (solo vendedor o solo comprador)
+  // DOS PUNTAS: 6% (ambos clientes)
+  tipoPunta                 String    @default("UNA") // UNA | DOS
+  
+  // Comisiones calculadas automáticamente
+  porcentajeComision        Float?    // 3% o 6% según puntas
+  comisionBruta             Float?    // Total comisión de la inmobiliaria
+  porcentajeAgente          Float?    // % que recibe el agente (viene de config inmobiliaria)
+  comisionAgente            Float?    // Lo que recibe el agente
+  
+  // Estado
+  estado                    String    @default("PENDIENTE") // PENDIENTE | COBRADA | CANCELADA
   
   // Cronograma
-  fechaPagoAprox            DateTime?
+  fechaOperacion            DateTime  @default(now())
+  fechaCobro                DateTime?
   observaciones             String?
   
   createdAt                 DateTime  @default(now())
@@ -245,6 +319,8 @@ model Operacion {
   
   @@index([nro])
   @@index([usuarioId])
+  @@index([inmobiliariaId])
+  @@index([estado])
 }
 
 // RESERVA Y DOCUMENTACION

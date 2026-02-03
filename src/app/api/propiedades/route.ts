@@ -26,14 +26,22 @@ export async function GET(request: NextRequest) {
     if (aptaCredito === 'true') where.aptaCredito = true
     if (estado) where.estado = estado
     
-    // Permisos por rol
-    if (currentUser.rol === 'admin') {
-      // Admin puede ver todas, pero puede filtrar por usuarioId
+    // Filtrar por inmobiliaria (multi-tenant)
+    if (currentUser.rol === 'superadmin') {
+      const inmobiliariaId = searchParams.get('inmobiliariaId')
+      if (inmobiliariaId) {
+        where.inmobiliariaId = inmobiliariaId
+      }
+    } else if (currentUser.inmobiliariaId) {
+      where.inmobiliariaId = currentUser.inmobiliariaId
+    }
+    
+    // Permisos por rol dentro de la inmobiliaria
+    if (currentUser.rol === 'admin' || currentUser.rol === 'superadmin') {
       if (usuarioId) {
         where.usuarioId = usuarioId
       }
     } else if (currentUser.rol === 'agente') {
-      // Agente solo ve las suyas
       where.usuarioId = currentUser.id
     }
 
@@ -41,6 +49,12 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         usuario: {
+          select: {
+            id: true,
+            nombre: true,
+          }
+        },
+        inmobiliaria: {
           select: {
             id: true,
             nombre: true,
@@ -99,6 +113,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Determinar inmobiliariaId
+    let inmobiliariaId = currentUser.inmobiliariaId
+    if (currentUser.rol === 'superadmin' && body.inmobiliariaId) {
+      inmobiliariaId = body.inmobiliariaId
+    }
+
     const propiedad = await prisma.propiedad.create({
       data: {
         titulo: titulo || null,
@@ -118,11 +138,18 @@ export async function POST(request: NextRequest) {
         urlMls: urlMls || null,
         fuente: fuente || null,
         aptaCredito: aptaCredito || false,
-        usuarioId: currentUser.id, // Asignar automáticamente el usuario que crea
-        estado: 'BORRADOR', // Estado por defecto
+        usuarioId: currentUser.id,
+        inmobiliariaId,
+        estado: 'BORRADOR',
       },
       include: {
         usuario: {
+          select: {
+            id: true,
+            nombre: true,
+          }
+        },
+        inmobiliaria: {
           select: {
             id: true,
             nombre: true,

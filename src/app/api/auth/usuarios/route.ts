@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar si existe
-    const existe = await prisma.usuario.findUnique({
+    const existe = await prisma.usuario.findFirst({
       where: { nombre },
     });
 

@@ -21,6 +21,58 @@ interface CurrentUser {
   rol: string
 }
 
+// Icons
+const Icons = {
+  search: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+  ),
+  star: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+    </svg>
+  ),
+  calendar: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="16" y1="2" x2="16" y2="6"></line>
+      <line x1="8" y1="2" x2="8" y2="6"></line>
+      <line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+  ),
+  bookmark: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+    </svg>
+  ),
+  check: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+  ),
+  dollar: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23"></line>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+    </svg>
+  ),
+  refresh: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </svg>
+  ),
+  bell: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    </svg>
+  ),
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const [stats, setStats] = useState<Stats>({
@@ -147,230 +199,162 @@ export default function Dashboard() {
     }
   }
 
-  if (loading) return <div className="text-center py-8">Cargando...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex items-center gap-3 text-slate-500">
+        <svg className="animate-spin h-6 w-6 text-sky-500" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span className="text-lg font-medium">Cargando dashboard...</span>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-        <div className="text-right">
-          <p className="text-sm text-slate-600">
-            {stats.isAdmin ? 'Administrador' : 'Agente'}:
-          </p>
-          <p className="text-lg font-semibold text-blue-600">{stats.agente}</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Vista general de tu actividad</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors">
+            <Icons.bell />
+          </button>
+          <button className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors">
+            <Icons.refresh />
+          </button>
+          <div className="bg-white rounded-xl border border-slate-200 px-4 py-2 flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+              {stats.agente.charAt(0).toUpperCase()}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-medium text-slate-800">{stats.agente}</p>
+              <p className="text-xs text-slate-500">{stats.isAdmin ? 'Administrador' : 'Agente'}</p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Búsquedas Activas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">
-              {stats.buscadasActivas}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Búsquedas Activas</p>
+                <p className="text-3xl font-bold text-sky-600">{stats.buscadasActivas}</p>
+              </div>
+              <div className="p-3 bg-sky-50 rounded-xl text-sky-500">
+                <Icons.search />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Calificadas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-purple-600">
-              {stats.buscadasCalificadas}
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Calificadas</p>
+                <p className="text-3xl font-bold text-violet-600">{stats.buscadasCalificadas}</p>
+              </div>
+              <div className="p-3 bg-violet-50 rounded-xl text-violet-500">
+                <Icons.star />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              En Visita
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-amber-600">
-              {stats.visitas}
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">En Visita</p>
+                <p className="text-3xl font-bold text-amber-600">{stats.visitas}</p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl text-amber-500">
+                <Icons.calendar />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Reservas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">
-              {stats.reservas}
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Reservas</p>
+                <p className="text-3xl font-bold text-emerald-600">{stats.reservas}</p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-xl text-emerald-500">
+                <Icons.bookmark />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Cerrados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-600">
-              {stats.cerrados}
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Cerrados</p>
+                <p className="text-3xl font-bold text-slate-700">{stats.cerrados}</p>
+              </div>
+              <div className="p-3 bg-slate-100 rounded-xl text-slate-500">
+                <Icons.check />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Comisiones (ARS)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-700">
-              ${stats.comisionesTotales.toLocaleString()}
+        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 mb-1">Comisiones (ARS)</p>
+                <p className="text-2xl font-bold text-green-600">${stats.comisionesTotales.toLocaleString()}</p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-xl text-green-500">
+                <Icons.dollar />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Pipeline */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pipeline por Estado</CardTitle>
+      <Card className="border-none shadow-sm bg-white">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold text-slate-800">Pipeline por Estado</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-2">
-                <span>NUEVO</span>
-                <span className="font-semibold">{stats.buscadasActivas}</span>
+        <CardContent className="space-y-5">
+          {[
+            { label: 'NUEVO', value: stats.buscadasActivas, color: 'bg-sky-500', bgLight: 'bg-sky-100' },
+            { label: 'CALIFICADO', value: stats.buscadasCalificadas, color: 'bg-violet-500', bgLight: 'bg-violet-100' },
+            { label: 'VISITA', value: stats.visitas, color: 'bg-amber-500', bgLight: 'bg-amber-100' },
+            { label: 'RESERVA', value: stats.reservas, color: 'bg-emerald-500', bgLight: 'bg-emerald-100' },
+            { label: 'CERRADO', value: stats.cerrados, color: 'bg-slate-500', bgLight: 'bg-slate-100' },
+          ].map((item) => {
+            const total = stats.buscadasActivas + stats.buscadasCalificadas + stats.visitas + stats.reservas + stats.cerrados || 1
+            const percentage = Math.min((item.value / total) * 100, 100)
+            return (
+              <div key={item.label}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-slate-600">{item.label}</span>
+                  <span className="text-sm font-bold text-slate-800">{item.value}</span>
+                </div>
+                <div className={`w-full ${item.bgLight} rounded-full h-2.5`}>
+                  <div
+                    className={`${item.color} h-2.5 rounded-full transition-all duration-500`}
+                    style={{ width: `${percentage}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      (stats.buscadasActivas /
-                        (stats.buscadasActivas +
-                          stats.buscadasCalificadas +
-                          stats.visitas +
-                          stats.reservas +
-                          stats.cerrados || 1)) *
-                        100,
-                      100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-2">
-                <span>CALIFICADO</span>
-                <span className="font-semibold">
-                  {stats.buscadasCalificadas}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-purple-600 h-2 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      (stats.buscadasCalificadas /
-                        (stats.buscadasActivas +
-                          stats.buscadasCalificadas +
-                          stats.visitas +
-                          stats.reservas +
-                          stats.cerrados || 1)) *
-                        100,
-                      100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-2">
-                <span>VISITA</span>
-                <span className="font-semibold">{stats.visitas}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-amber-600 h-2 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      (stats.visitas /
-                        (stats.buscadasActivas +
-                          stats.buscadasCalificadas +
-                          stats.visitas +
-                          stats.reservas +
-                          stats.cerrados || 1)) *
-                        100,
-                      100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-2">
-                <span>RESERVA</span>
-                <span className="font-semibold">{stats.reservas}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-green-600 h-2 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      (stats.reservas /
-                        (stats.buscadasActivas +
-                          stats.buscadasCalificadas +
-                          stats.visitas +
-                          stats.reservas +
-                          stats.cerrados || 1)) *
-                        100,
-                      100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between mb-2">
-                <span>CERRADO</span>
-                <span className="font-semibold">{stats.cerrados}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-slate-600 h-2 rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      (stats.cerrados /
-                        (stats.buscadasActivas +
-                          stats.buscadasCalificadas +
-                          stats.visitas +
-                          stats.reservas +
-                          stats.cerrados || 1)) *
-                        100,
-                      100
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-          </div>
+            )
+          })}
         </CardContent>
       </Card>
     </div>

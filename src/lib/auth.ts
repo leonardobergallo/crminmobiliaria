@@ -38,30 +38,35 @@ export function verifyToken(token: string): TokenPayload | null {
 
 // Obtener usuario actual desde cookies
 export async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth-token')?.value;
-  
-  if (!token) return null;
-  
-  const payload = verifyToken(token);
-  if (!payload) return null;
-  
-  const user = await prisma.usuario.findUnique({
-    where: { id: payload.userId },
-    select: {
-      id: true,
-      nombre: true,
-      email: true,
-      telefono: true,
-      avatar: true,
-      rol: true,
-      activo: true,
-    }
-  });
-  
-  if (!user || !user.activo) return null;
-  
-  return user;
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth-token')?.value;
+    
+    if (!token) return null;
+    
+    const payload = verifyToken(token);
+    if (!payload || typeof payload !== 'object' || !payload.userId) return null;
+    
+    const user = await prisma.usuario.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        telefono: true,
+        avatar: true,
+        rol: true,
+        activo: true,
+        inmobiliariaId: true,
+      }
+    });
+
+    if (!user || !user.activo) return null;
+    return user;
+  } catch (err) {
+    console.error('CRITICAL ERROR in getCurrentUser:', err);
+    throw err;
+  }
 }
 
 // Verificar si es admin

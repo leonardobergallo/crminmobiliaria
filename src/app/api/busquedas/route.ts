@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const clienteId = searchParams.get('clienteId')
     const estado = searchParams.get('estado')
-    const createdBy = searchParams.get('createdBy') // Filtro por agente (solo admin)
+    const createdBy = searchParams.get('createdBy')
 
     const where: any = {}
     
@@ -24,28 +24,35 @@ export async function GET(request: NextRequest) {
     if (clienteId) where.clienteId = clienteId
     if (estado) where.estado = estado
     
-    // Permisos por rol
-    if (currentUser.rol === 'admin') {
-      // Admin puede ver todas, pero puede filtrar por createdBy
+    // Filtrar por inmobiliaria (multi-tenant) - a través del cliente
+    if (currentUser.rol === 'superadmin') {
+      const inmobiliariaId = searchParams.get('inmobiliariaId')
+      if (inmobiliariaId) {
+        where.cliente = { inmobiliariaId }
+      }
+      // Si hay filtro de agente creador
       if (createdBy) {
         where.createdBy = createdBy
       }
-      // Si no hay filtro, admin ve todas (no agregamos ningún filtro adicional)
-    } else if (currentUser.rol === 'agente') {
-      // Agente solo ve las que creó o de sus clientes
-      // Construir condiciones OR de forma segura
-      where.OR = [
-        // Búsquedas que el agente creó (puede incluir null para compatibilidad)
-        { 
-          createdBy: currentUser.id 
-        },
-        // Búsquedas de clientes asignados al agente
-        { 
-          cliente: { 
-            usuarioId: currentUser.id 
-          } 
+    } else if (currentUser.inmobiliariaId) {
+      // Para admin y agente: SIEMPRE filtrar por su inmobiliaria
+      if (currentUser.rol === 'admin') {
+        where.cliente = { inmobiliariaId: currentUser.inmobiliariaId }
+        if (createdBy) {
+          where.createdBy = createdBy
         }
-      ]
+      } else if (currentUser.rol === 'agente') {
+        // Agente solo ve sus propias búsquedas dentro de su inmobiliaria
+        where.AND = [
+          { cliente: { inmobiliariaId: currentUser.inmobiliariaId } },
+          {
+            OR: [
+              { createdBy: currentUser.id },
+              { cliente: { usuarioId: currentUser.id } }
+            ]
+          }
+        ]
+      }
     }
 
     // Consulta básica sin la relación usuario que puede causar problemas

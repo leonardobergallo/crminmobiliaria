@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import AgendaModal from '@/components/AgendaModal'
 import {
   Table,
   TableBody,
@@ -57,6 +58,11 @@ export default function PropiedadesPage() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  
+  // States for Agenda
+  const [agendaOpen, setAgendaOpen] = useState(false)
+  const [selectedPropiedad, setSelectedPropiedad] = useState<Propiedad | undefined>(undefined)
+
   const [formData, setFormData] = useState({
     titulo: '',
     tipo: 'DEPARTAMENTO',
@@ -258,12 +264,20 @@ export default function PropiedadesPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900">Propiedades</h1>
-        <Button
-          onClick={() => { resetForm(); setMostrarForm(!mostrarForm) }}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          + Nueva Propiedad
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => window.open('/api/export-properties', '_blank')}
+            variant="outline"
+          >
+            📥 Exportar Excel
+          </Button>
+          <Button
+            onClick={() => { resetForm(); setMostrarForm(!mostrarForm) }}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            + Nueva Propiedad
+          </Button>
+        </div>
       </div>
 
       {/* Formulario Crear/Editar */}
@@ -560,6 +574,15 @@ export default function PropiedadesPage() {
                           </a>
                         )}
                         <button
+                          onClick={() => {
+                            setSelectedPropiedad(propiedad)
+                            setAgendaOpen(true)
+                          }}
+                          className="text-green-600 hover:underline text-sm"
+                        >
+                          Agendar
+                        </button>
+                        <button
                           onClick={() => handleEdit(propiedad)}
                           className="text-amber-600 hover:underline text-sm"
                           disabled={currentUser?.rol === 'agente' && propiedad.estado !== 'BORRADOR' && propiedad.estado !== undefined}
@@ -581,6 +604,16 @@ export default function PropiedadesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal de Agenda */}
+      <AgendaModal
+        isOpen={agendaOpen}
+        onClose={() => setAgendaOpen(false)}
+        propiedad={selectedPropiedad}
+        onSuccess={() => {
+          alert('Visita agendada con éxito')
+        }}
+      />
     </div>
   )
 }
