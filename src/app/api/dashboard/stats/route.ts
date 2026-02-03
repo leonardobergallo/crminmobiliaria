@@ -110,12 +110,13 @@ export async function GET(request: NextRequest) {
     // Obtener operaciones para calcular comisiones con manejo de errores
     let operaciones: Array<{ comisionTotal: number | null }> = []
     try {
-      operaciones = await prisma.operacion.findMany({
+      const result = await prisma.operacion.findMany({
         where: operacionWhere,
         select: {
           comisionTotal: true,
         },
       })
+      operaciones = result
     } catch (error: any) {
       console.error('Error obteniendo operaciones para estadísticas:', error)
       // Si hay error, usar array vacío
