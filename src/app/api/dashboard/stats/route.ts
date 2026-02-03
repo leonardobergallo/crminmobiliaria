@@ -108,12 +108,12 @@ export async function GET(request: NextRequest) {
     })
 
     // Obtener operaciones para calcular comisiones con manejo de errores
-    let operaciones: Array<{ comisionTotal: number | null }> = []
+    let operaciones: Array<{ comisionBruta: number | null }> = []
     try {
       const result = await prisma.operacion.findMany({
         where: operacionWhere,
         select: {
-          comisionTotal: true,
+          comisionBruta: true,
         },
       })
       operaciones = result
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     }
 
     const comisionesTotales = operaciones.reduce(
-      (sum, op) => sum + (op.comisionTotal || 0),
+      (sum, op) => sum + (op.comisionBruta || 0),
       0
     )
 
