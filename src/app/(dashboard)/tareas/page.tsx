@@ -147,7 +147,9 @@ export default function TareasPage() {
         ? new Date(tarea.fechaVencimiento).toISOString().split('T')[0] 
         : '',
       prioridad: tarea.prioridad,
+      tipo: tarea.tipo || 'GENERAL',
       clienteId: '',
+      propiedadId: '',
     })
     setEditingId(tarea.id)
     setMostrarForm(true)
