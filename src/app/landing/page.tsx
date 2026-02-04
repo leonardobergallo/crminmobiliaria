@@ -204,66 +204,19 @@ export default function LandingPage() {
           <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">Planes y Precios</h2>
           
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto mb-8">
-            {/* Plan Básico */}
-            <div className="p-8 rounded-2xl border-2 border-slate-200">
-              <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold text-slate-900 mb-2">Básico</h3>
-                <div className="mb-4">
-                  <span className="text-4xl font-bold text-slate-900">$29.900</span>
-                  <span className="text-slate-600">/mes</span>
-                </div>
-                <p className="text-sm text-slate-600">Para inmobiliarias pequeñas</p>
-              </div>
-              <ul className="space-y-3 mb-8 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Hasta 2 agentes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Hasta 500 propiedades</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">IA WhatsApp (100 mensajes/mes)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Sugerencias inteligentes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Dashboard básico</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Cálculo de comisiones</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700">Importación Excel</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-slate-400 mt-1">✗</span>
-                  <span className="text-slate-400 line-through">Búsqueda ML/Argenprop</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Plan Profesional */}
+            {/* Plan Profesional Mensual */}
             <div className="p-8 rounded-2xl border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 relative">
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
-                  RECOMENDADO
+                  PLAN MENSUAL
                 </span>
               </div>
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold text-slate-900 mb-2">Profesional</h3>
+                <h3 className="text-2xl font-bold text-slate-900 mb-2">Plan Profesional</h3>
                 <div className="mb-4">
                   <span className="text-4xl font-bold text-slate-900">$120.000</span>
                   <span className="text-slate-600">/mes</span>
                 </div>
-                <p className="text-sm text-slate-600">Para inmobiliarias en crecimiento</p>
                 <div className="mt-2">
                   <span className="inline-block bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
                     🎁 Prueba 7 días gratis
@@ -273,131 +226,95 @@ export default function LandingPage() {
               <ul className="space-y-3 mb-8 text-sm">
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Hasta 10 agentes</span>
+                  <span className="text-slate-700 font-medium">Todas las funcionalidades del CRM</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Propiedades ilimitadas</span>
+                  <span className="text-slate-700 font-medium">IA para parseo de WhatsApp</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">IA WhatsApp (500 mensajes/mes) - Parseo automático</span>
+                  <span className="text-slate-700 font-medium">Sugerencias inteligentes con scoring</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Sugerencias inteligentes con scoring (ALTA/MEDIA/BAJA)</span>
+                  <span className="text-slate-700 font-medium">Búsqueda automática ML/Argenprop</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Búsqueda automática en MercadoLibre y Argenprop</span>
+                  <span className="text-slate-700 font-medium">Multi-inmobiliaria y multi-agente</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Dashboard avanzado con KPIs y pipeline visual</span>
+                  <span className="text-slate-700 font-medium">Dashboard avanzado y comisiones</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Multi-inmobiliaria y multi-agente completo</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Cálculo automático de comisiones</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Importación desde Excel</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Carga rápida de propiedades</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Gestión completa de clientes y búsquedas</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Control de estados y permisos por rol</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span className="text-slate-700 font-medium">Soporte prioritario</span>
+                  <span className="text-slate-700 font-medium">Soporte técnico incluido</span>
                 </li>
               </ul>
             </div>
-          </div>
 
-          {/* Opción de Pago Único */}
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-8 border-2 border-purple-500 relative">
+            {/* Pago Único */}
+            <div className="p-8 rounded-2xl border-2 border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 relative">
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <span className="bg-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
                   PAGO ÚNICO
                 </span>
               </div>
               <div className="text-center mb-6">
-                <h3 className="text-3xl font-bold text-slate-900 mb-2">Sistema Completo</h3>
+                <h3 className="text-2xl font-bold text-slate-900 mb-2">Sistema Completo</h3>
                 <div className="mb-4">
-                  <span className="text-5xl font-bold text-purple-600">$300.000</span>
-                  <span className="text-slate-600 text-xl"> (pago único)</span>
+                  <span className="text-4xl font-bold text-purple-600">$300.000</span>
+                  <span className="text-slate-600 text-lg"> (pago único)</span>
                 </div>
-                <p className="text-lg text-slate-700 font-medium">Licencia perpetua del sistema completo</p>
+                <p className="text-sm text-slate-700 font-medium">Licencia perpetua</p>
               </div>
-              <ul className="space-y-3 mb-6 text-sm text-left max-w-md mx-auto">
+              <ul className="space-y-3 mb-6 text-sm">
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700"><strong>Todas las funcionalidades del plan Profesional</strong></span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Todas las funcionalidades del CRM</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Agentes y propiedades ilimitados</span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Sin límites ni restricciones</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">IA ilimitada sin restricciones</span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Sin pagos mensuales</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Sin pagos mensuales recurrentes</span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Soporte técnico (1 año)</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Soporte técnico incluido (1 año)</span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Actualizaciones incluidas (1 año)</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Actualizaciones y mejoras incluidas (1 año)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Instalación y configuración inicial</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1 font-bold">✓</span>
-                  <span className="text-slate-700">Capacitación del equipo incluida</span>
+                  <span className="text-green-600 mt-1">✓</span>
+                  <span className="text-slate-700 font-medium">Instalación y capacitación</span>
                 </li>
               </ul>
+              
+              {/* Comparación de ahorro */}
               <div className="bg-white rounded-lg p-4 text-center">
-                <p className="text-xs text-slate-600 mb-2">Comparación con plan mensual:</p>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">Plan Profesional mensual:</span>
-                    <span className="font-semibold">$120.000/mes</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">En 3 meses pagarías:</span>
+                <p className="text-xs text-slate-600 mb-3 font-semibold">💰 Comparación de ahorro:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Plan mensual (3 meses):</span>
                     <span className="font-semibold text-red-600">$360.000</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-t pt-2">
-                    <span className="text-green-600 font-semibold">Pago único en efectivo:</span>
-                    <span className="font-bold text-green-600 text-lg">$300.000</span>
+                  <div className="flex justify-between">
+                    <span className="text-green-600 font-semibold">Pago único:</span>
+                    <span className="font-bold text-green-600">$300.000</span>
                   </div>
-                  <div className="pt-2 border-t bg-green-50 rounded p-2">
+                  <div className="border-t pt-2 mt-2 bg-green-50 rounded p-2">
                     <p className="text-sm font-bold text-green-700">
-                      💰 Descuento del 16.7% pagando de una vez
+                      💵 Descuento del 16.7%
                     </p>
                     <p className="text-xs text-green-600 mt-1">
-                      Ahorras $60.000 en solo 3 meses
+                      Ahorras $60.000
                     </p>
                   </div>
                 </div>
@@ -405,111 +322,10 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Opciones de Pago */}
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-8 max-w-4xl mx-auto">
-            <h3 className="text-2xl font-bold text-slate-900 mb-6 text-center">Opciones de Pago</h3>
-            
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-              {/* Pago Mensual */}
-              <div className="bg-white p-6 rounded-xl">
-                <h4 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <span>💳</span> Pago Mensual
-                </h4>
-                <ul className="space-y-2 text-slate-700 mb-4 text-sm">
-                  <li>• Facturación mensual recurrente</li>
-                  <li>• Cancelación en cualquier momento</li>
-                  <li>• Sin compromiso a largo plazo</li>
-                  <li>• Pago por transferencia bancaria o Mercado Pago</li>
-                </ul>
-                <div className="mt-4 p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-2">Ejemplo Plan Profesional:</p>
-                  <p className="text-2xl font-bold text-slate-900">$120.000/mes</p>
-                  <p className="text-sm text-slate-600">Facturado mensualmente</p>
-                  <p className="text-xs text-green-600 mt-1 font-semibold">🎁 Prueba 7 días gratis</p>
-                </div>
-              </div>
-
-              {/* Pago Anual */}
-              <div className="bg-white p-6 rounded-xl border-2 border-green-500 relative">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                    AHORRA 20%
-                  </span>
-                </div>
-                <h4 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <span>💰</span> Pago Anual
-                </h4>
-                <ul className="space-y-2 text-slate-700 mb-4 text-sm">
-                  <li>• Pago único por todo el año</li>
-                  <li>• <strong>Descuento del 20%</strong> (2 meses gratis)</li>
-                  <li>• Facturación anual</li>
-                  <li>• Pago por transferencia bancaria</li>
-                </ul>
-                <div className="mt-4 p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-slate-600 mb-2">Ejemplo Plan Profesional:</p>
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-lg text-slate-400 line-through">$120.000/mes</span>
-                    <span className="text-2xl font-bold text-green-600">$96.000/mes</span>
-                  </div>
-                  <p className="text-sm text-slate-600">Total anual: $1.152.000 (ahorro de $288.000)</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Pago Único - Sistema Completo */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-500">
-              <h4 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2 text-center justify-center">
-                <span>🎁</span> Pago Único - Sistema Completo
-              </h4>
-              <div className="text-center mb-4">
-                <p className="text-3xl font-bold text-purple-600 mb-2">$300.000</p>
-                <p className="text-sm text-slate-600">Pago único • Licencia perpetua</p>
-              </div>
-              
-              {/* Comparación de ahorro */}
-              <div className="bg-white rounded-lg p-4 mb-4">
-                <p className="text-xs text-slate-600 mb-3 text-center">💰 Comparación con plan mensual ($120.000/mes):</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">3 meses de plan mensual:</span>
-                    <span className="font-semibold text-red-600">$360.000</span>
-                  </div>
-                  <div className="border-t pt-2 mt-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-green-600 font-semibold">Pago único en efectivo:</span>
-                      <span className="font-bold text-green-600 text-lg">$300.000</span>
-                    </div>
-                  </div>
-                  <div className="bg-green-50 rounded p-2 mt-2">
-                    <p className="text-xs text-green-700 text-center">
-                      <strong>💵 Descuento del 16.7% pagando de una vez</strong>
-                    </p>
-                    <p className="text-xs text-green-700 text-center mt-1">
-                      En 3 meses pagas <strong>$360.000</strong>, con pago único ahorras <strong>$60.000</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <ul className="space-y-2 text-slate-700 text-sm max-w-md mx-auto">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span>Todas las funcionalidades sin límites</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span>Sin pagos mensuales recurrentes</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">✓</span>
-                  <span>Soporte y actualizaciones (1 año incluido)</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Métodos de Pago */}
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <h4 className="text-lg font-semibold text-slate-900 mb-3 text-center">Métodos de Pago Aceptados</h4>
+          {/* Métodos de Pago */}
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 text-center">Métodos de Pago Aceptados</h3>
               <div className="flex flex-wrap justify-center gap-4 text-sm text-slate-600">
                 <span>✓ Transferencia bancaria</span>
                 <span>✓ Mercado Pago</span>
@@ -525,13 +341,13 @@ export default function LandingPage() {
               <h4 className="font-semibold text-slate-900 mb-3">📋 Notas Importantes</h4>
               <ul className="space-y-2 text-sm text-slate-700">
                 <li>• <strong>🎁 Prueba gratuita:</strong> 7 días completos para probar todas las funcionalidades, sin tarjeta de crédito requerida</li>
-                <li>• <strong>💵 Pago único en efectivo:</strong> $300.000 (descuento del 16.7% vs pagar 3 meses mensual)</li>
+                <li>• <strong>💵 Pago único:</strong> $300.000 en efectivo (descuento del 16.7% vs pagar 3 meses mensual - ahorras $60.000)</li>
+                <li>• <strong>Plan mensual:</strong> $120.000/mes (en 3 meses pagarías $360.000)</li>
                 <li>• <strong>Precios en pesos argentinos (ARS):</strong> Los precios pueden ajustarse según inflación</li>
                 <li>• <strong>Facturación:</strong> Emitimos factura A o B según corresponda</li>
                 <li>• <strong>Implementación:</strong> Incluye configuración inicial y capacitación básica</li>
                 <li>• <strong>Soporte:</strong> Email y WhatsApp durante horario laboral (Lun-Vie 9-18hs)</li>
                 <li>• <strong>Actualizaciones:</strong> Todas las mejoras y nuevas funcionalidades incluidas sin costo adicional</li>
-                <li>• <strong>Todas las funcionalidades incluidas:</strong> IA, multi-agente, multi-inmobiliaria, sugerencias inteligentes, búsqueda automática ML/Argenprop, dashboard, comisiones, importación Excel, y más</li>
               </ul>
             </div>
           </div>
@@ -545,7 +361,7 @@ export default function LandingPage() {
             ¿Listo para comenzar?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Solicita tu presupuesto personalizado o inicia tu prueba gratuita de 14 días
+            Solicita tu presupuesto personalizado o inicia tu prueba gratuita de 7 días
           </p>
           <form onSubmit={handleContact} className="max-w-md mx-auto space-y-4">
             <input
