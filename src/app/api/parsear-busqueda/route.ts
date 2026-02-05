@@ -688,9 +688,11 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
 
     // 3. Validar dormitorios (OBLIGATORIO si está especificado)
     if (criterios.dormitoriosMin) {
-      const dormOk = prop.dormitorios >= criterios.dormitoriosMin || 
-                     prop.dormitorios >= Math.max(1, criterios.dormitoriosMin - 1) ||
-                     (prop.ambientes && prop.ambientes >= criterios.dormitoriosMin)
+      const dorms = prop.dormitorios || 0
+      const ambientes = prop.ambientes || 0
+      const dormOk = dorms >= criterios.dormitoriosMin || 
+                     dorms >= Math.max(1, criterios.dormitoriosMin - 1) ||
+                     (ambientes >= criterios.dormitoriosMin)
       if (!dormOk) return false
     }
 
