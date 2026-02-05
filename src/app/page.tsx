@@ -10,6 +10,6 @@ export default async function Home() {
     redirect('/dashboard')
   }
   
-  // Si no está autenticado, mostrar la landing
-  redirect('/landing')
+  // Si no está autenticado, mostrar el login (antes redirigía a /landing)
+  redirect('/login')
 }
