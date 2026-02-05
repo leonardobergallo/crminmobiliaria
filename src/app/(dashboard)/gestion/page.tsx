@@ -775,7 +775,7 @@ function GestionClienteContent() {
                               </div>
                             )}
                           </div>
-                        ))}
+                        )})}
                       </div>
                     )}
                   </CardContent>
