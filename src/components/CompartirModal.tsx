@@ -21,6 +21,7 @@ interface Propiedad {
   descripcion?: string | null
   urlMls?: string | null
   aptaCredito?: boolean
+  urlPropiedad?: string | null // Link directo a la página de la propiedad
 }
 
 interface CompartirModalProps {
@@ -88,8 +89,17 @@ ${ubicacion}
     }
 
     // Link
-    if (incluirLink && propiedad.urlMls) {
-      mensaje += `\n\n🔗 Ver más: ${propiedad.urlMls}`
+    if (incluirLink) {
+      // Priorizar link directo de la propiedad si existe, sino usar MLS
+      if (propiedad.urlPropiedad) {
+        mensaje += `\n\n🔗 Ver detalles: ${propiedad.urlPropiedad}`
+      } else if (propiedad.urlMls) {
+        mensaje += `\n\n🔗 Ver más: ${propiedad.urlMls}`
+      } else if (typeof window !== 'undefined') {
+        // Si no hay link, generar uno directo a la propiedad
+        const linkPropiedad = `${window.location.origin}/propiedades/${propiedad.id}`
+        mensaje += `\n\n🔗 Ver detalles: ${linkPropiedad}`
+      }
     }
 
     mensaje += '\n\n¿Te gustaría coordinar una visita? 📅'

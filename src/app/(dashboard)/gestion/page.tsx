@@ -87,7 +87,11 @@ interface Sugerencias {
   propiedadesEnviadasCount: number
 }
 
-export default function GestionClientePage() {
+function GestionClienteContent() {
+  const searchParams = useSearchParams()
+  const clienteIdFromUrl = searchParams.get('clienteId')
+  const tabFromUrl = searchParams.get('tab') as 'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias' | null
+  
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
   const [busquedas, setBusquedas] = useState<Busqueda[]>([])
@@ -95,7 +99,7 @@ export default function GestionClientePage() {
   const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([])
   const [sugerencias, setSugerencias] = useState<Sugerencias | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias'>('busquedas')
+  const [tab, setTab] = useState<'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias'>(tabFromUrl || 'busquedas')
   
   // Forms
   const [mostrarFormBusqueda, setMostrarFormBusqueda] = useState(false)
@@ -124,6 +128,16 @@ export default function GestionClientePage() {
   useEffect(() => {
     fetchClientes()
   }, [])
+
+  useEffect(() => {
+    // Si hay clienteId en la URL, seleccionarlo automáticamente
+    if (clienteIdFromUrl && clientes.length > 0) {
+      const cliente = clientes.find(c => c.id === clienteIdFromUrl)
+      if (cliente && !clienteSeleccionado) {
+        setClienteSeleccionado(cliente)
+      }
+    }
+  }, [clienteIdFromUrl, clientes, clienteSeleccionado])
 
   useEffect(() => {
     if (clienteSeleccionado) {
@@ -483,15 +497,24 @@ export default function GestionClientePage() {
               {tab === 'busquedas' && (
                 <Card>
                   <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>🔍 Búsquedas del Cliente</CardTitle>
-                      <Button 
-                        size="sm" 
-                        onClick={() => setMostrarFormBusqueda(!mostrarFormBusqueda)}
-                        className="bg-blue-600"
-                      >
-                        + Nueva Búsqueda
-                      </Button>
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <CardTitle>🔍 Búsquedas del Cliente ({busquedas.length})</CardTitle>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => window.location.href = `/parsear?clienteId=${clienteSeleccionado.id}`}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          📱 Analizar Mensaje WhatsApp
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => setMostrarFormBusqueda(!mostrarFormBusqueda)}
+                          className="bg-blue-600"
+                        >
+                          + Nueva Búsqueda Manual
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -623,11 +646,21 @@ export default function GestionClientePage() {
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {busquedas.map((busqueda) => (
-                          <div key={busqueda.id} className="p-4 border rounded-lg bg-white">
+                        {busquedas.map((busqueda) => {
+                          // Extraer mensaje original de observaciones si existe
+                          const observaciones = busqueda.observaciones || ''
+                          const mensajeOriginal = observaciones.includes('--- Mensaje original ---')
+                            ? observaciones.split('--- Mensaje original ---')[1]?.trim() || ''
+                            : null
+                          const observacionesSinMensaje = mensajeOriginal
+                            ? observaciones.split('--- Mensaje original ---')[0]?.trim() || ''
+                            : observaciones
+
+                          return (
+                          <div key={busqueda.id} className="p-4 border rounded-lg bg-white hover:shadow-md transition-shadow">
                             <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
                                   <h3 className="font-semibold text-lg">
                                     {busqueda.tipoPropiedad || 'Propiedad'} - {busqueda.presupuestoTexto || 'Sin presupuesto'}
                                   </h3>
@@ -641,23 +674,64 @@ export default function GestionClientePage() {
                                   }`}>
                                     {busqueda.estado}
                                   </span>
+                                  <span className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full">
+                                    {busqueda.origen}
+                                  </span>
                                 </div>
-                                <div className="text-sm text-slate-600 space-y-1">
-                                  <p><strong>Origen:</strong> {busqueda.origen}</p>
+
+                                {/* Mensaje original destacado si existe */}
+                                {mensajeOriginal && (
+                                  <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-r shadow-sm">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-xl">📱</span>
+                                      <div className="flex-1">
+                                        <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Mensaje Original de WhatsApp:</p>
+                                        <p className="text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed bg-white p-3 rounded border border-blue-200">{mensajeOriginal}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Resumen de la búsqueda */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                   {busqueda.ubicacionPreferida && (
-                                    <p><strong>Zona:</strong> {busqueda.ubicacionPreferida}</p>
+                                    <div className="bg-slate-50 p-2 rounded">
+                                      <p className="text-xs text-slate-500 mb-0.5">📍 Zona</p>
+                                      <p className="text-sm font-medium text-slate-900">{busqueda.ubicacionPreferida}</p>
+                                    </div>
                                   )}
                                   {busqueda.dormitoriosMin && (
-                                    <p><strong>Dormitorios mín:</strong> {busqueda.dormitoriosMin}</p>
+                                    <div className="bg-slate-50 p-2 rounded">
+                                      <p className="text-xs text-slate-500 mb-0.5">🛏️ Dormitorios</p>
+                                      <p className="text-sm font-medium text-slate-900">{busqueda.dormitoriosMin}+</p>
+                                    </div>
                                   )}
-                                  {busqueda.observaciones && (
-                                    <p><strong>Observaciones:</strong> {busqueda.observaciones}</p>
+                                  {busqueda.cochera && (
+                                    <div className="bg-slate-50 p-2 rounded">
+                                      <p className="text-xs text-slate-500 mb-0.5">🚗 Cochera</p>
+                                      <p className="text-sm font-medium text-slate-900">{busqueda.cochera}</p>
+                                    </div>
                                   )}
-                                  <p className="text-xs text-slate-500">
-                                    Creada: {new Date(busqueda.createdAt).toLocaleDateString('es-AR')}
-                                    {busqueda.usuario && ` • Por: ${busqueda.usuario.nombre}`}
-                                  </p>
+                                  {busqueda.moneda && busqueda.presupuestoValor && (
+                                    <div className="bg-slate-50 p-2 rounded">
+                                      <p className="text-xs text-slate-500 mb-0.5">💰 Presupuesto</p>
+                                      <p className="text-sm font-medium text-slate-900">{busqueda.moneda} {busqueda.presupuestoValor.toLocaleString()}</p>
+                                    </div>
+                                  )}
                                 </div>
+
+                                {/* Observaciones (sin mensaje original) */}
+                                {observacionesSinMensaje && (
+                                  <div className="mb-2">
+                                    <p className="text-xs font-semibold text-slate-500 mb-1">📝 Detalles:</p>
+                                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{observacionesSinMensaje}</p>
+                                  </div>
+                                )}
+
+                                <p className="text-xs text-slate-500 mt-2">
+                                  Creada: {new Date(busqueda.createdAt).toLocaleDateString('es-AR')}
+                                  {busqueda.usuario && ` • Por: ${busqueda.usuario.nombre}`}
+                                </p>
                               </div>
                             </div>
                             
@@ -988,5 +1062,19 @@ export default function GestionClientePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function GestionClientePage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="text-center py-8">
+          <p className="text-slate-600">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <GestionClienteContent />
+    </Suspense>
   )
 }

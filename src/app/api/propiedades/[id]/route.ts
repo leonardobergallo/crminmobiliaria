@@ -27,6 +27,15 @@ export async function GET(
             nombre: true,
           }
         },
+        inmobiliaria: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true,
+            whatsapp: true,
+            slug: true,
+          }
+        },
         matches: { include: { busqueda: true } },
       },
     })

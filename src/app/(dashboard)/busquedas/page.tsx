@@ -546,7 +546,12 @@ export default function BusquedasPage() {
                 filtrados.map((busqueda) => (
                   <TableRow key={busqueda.id}>
                     <TableCell className="font-medium">
-                      {busqueda.cliente.nombreCompleto}
+                      <button
+                        onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {busqueda.cliente.nombreCompleto}
+                      </button>
                     </TableCell>
                     <TableCell>{busqueda.presupuestoTexto || '-'}</TableCell>
                     <TableCell>{busqueda.tipoPropiedad || '-'}</TableCell>
