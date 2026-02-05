@@ -17,6 +17,7 @@ import {
 interface Busqueda {
   id: string
   cliente: { 
+    id: string
     nombreCompleto: string
     usuario?: { id: string; nombre: string } | null
   }
