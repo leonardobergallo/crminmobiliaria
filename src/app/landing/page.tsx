@@ -318,51 +318,53 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <Card className="p-8 border-none bg-white">
+            <Card className="p-8 border-none bg-white shadow-md">
               <h3 className="text-xl font-bold mb-2">Implementación Inicial</h3>
               <p className="text-slate-500 text-sm mb-6">Pago único por setup completo</p>
-              <div className="text-4xl font-extrabold text-slate-900 mb-8">$99.999</div>
+              <div className="text-4xl font-extrabold text-slate-900 mb-8">$299.000</div>
               <ul className="space-y-4 mb-8">
                 {[
-                  'Instalación y configuración',
-                  'Migración de datos',
-                  'Capacitación básica',
-                  'Personalización inicial'
+                  'Instalación y configuración completa',
+                  'Migración de datos desde Excel/Portales',
+                  'Capacitación para todo el equipo',
+                  'Personalización de marca y colores',
+                  'Carga inicial de propiedades'
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-600">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500" /> {item}
+                  <li key={i} className="flex items-center gap-2 text-slate-600 font-medium">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" /> {item}
                   </li>
                 ))}
               </ul>
               <a href="#contacto" className="block">
-                <Button className="w-full" variant="outline">Elegir Plan</Button>
+                <Button className="w-full h-12 text-lg" variant="outline">Elegir Plan</Button>
               </a>
             </Card>
 
-            <Card className="p-8 border-2 border-blue-600 bg-white relative">
+            <Card className="p-8 border-2 border-blue-600 bg-white relative shadow-xl">
               <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-bl-lg">
                 POPULAR
               </div>
               <h3 className="text-xl font-bold mb-2">Mantenimiento Mensual</h3>
               <p className="text-slate-500 text-sm mb-6">Soporte continuo y actualizaciones</p>
               <div className="text-4xl font-extrabold text-slate-900 mb-8">
-                $19.999 <span className="text-xl font-normal text-slate-400">/mes</span>
+                $59.000 <span className="text-xl font-normal text-slate-400">/mes</span>
               </div>
               <ul className="space-y-4 mb-8">
                 {[
-                  'Soporte técnico prioritario',
-                  'Actualizaciones de software',
-                  'Hosting en la nube',
-                  'Backups automáticos',
-                  'Certificado SSL'
+                  'Soporte técnico prioritario 24/7',
+                  'Actualizaciones permanentes del sistema',
+                  'Hosting en la nube de alta velocidad',
+                  'Backups diarios automáticos',
+                  'Certificado de seguridad SSL',
+                  'Nuevas funcionalidades cada mes'
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-slate-600">
-                    <CheckCircle2 className="w-5 h-5 text-blue-500" /> {item}
+                  <li key={i} className="flex items-center gap-2 text-slate-600 font-medium">
+                    <CheckCircle2 className="w-5 h-5 text-blue-500 shrink-0" /> {item}
                   </li>
                 ))}
               </ul>
               <a href="#contacto" className="block">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">Contratar Ahora</Button>
+                <Button className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700">Contratar Ahora</Button>
               </a>
             </Card>
           </div>
