@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CRM Inmobiliario - Gestión para Inmobiliarias en Santa Fe",
-  description: "Plataforma CRM diseñada para agentes inmobiliarios de Santa Fe, Argentina. Gestiona clientes, propiedades, búsquedas y comisiones en un solo lugar.",
+  title: "Inmobiliar en Equipo - Sistema de Gestión Inmobiliaria",
+  description: "Sistema completo de administración inmobiliaria con importación automática, búsqueda inteligente y gestión de clientes.",
 };
 
 export default function RootLayout({

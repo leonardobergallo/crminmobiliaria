@@ -22,6 +22,56 @@ interface BusquedaParseada {
   confianza: number // 0-100
 }
 
+// ----------------------------------------------------------------------
+// UTILIDADES DE SCRAPING
+// ----------------------------------------------------------------------
+
+function getRandomUserAgent() {
+  const agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0'
+  ]
+  return agents[Math.floor(Math.random() * agents.length)]
+}
+
+function getScrapingHeaders(referer: string = 'https://www.google.com/') {
+  return {
+    'User-Agent': getRandomUserAgent(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer': referer,
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'cross-site',
+    'Upgrade-Insecure-Requests': '1'
+  }
+}
+
+async function fetchWithTimeout(url: string, options: any = {}, timeout: number = 8000) {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    clearTimeout(id)
+    return response
+  } catch (error) {
+    clearTimeout(id)
+    throw error
+  }
+}
+
 // POST: Parsear mensaje de WhatsApp (parser local)
 export async function POST(request: NextRequest) {
   try {
@@ -1039,11 +1089,8 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
 
     console.log(`Scraping MercadoLibre: ${url}`)
     
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-      }
+    const response = await fetchWithTimeout(url, {
+      headers: getScrapingHeaders('https://www.mercadolibre.com.ar/')
     })
 
     if (!response.ok) {
@@ -1298,10 +1345,8 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
 
     console.log(`Scraping ArgenProp: ${url}`)
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+    const response = await fetchWithTimeout(url, {
+      headers: getScrapingHeaders('https://www.argenprop.com/')
     })
 
     if (!response.ok) {
@@ -1515,10 +1560,8 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     
     console.log(`Scraping Remax: ${url}`)
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+    const response = await fetchWithTimeout(url, {
+      headers: getScrapingHeaders('https://www.remax.com.ar/')
     })
 
     if (!response.ok) {
@@ -1720,10 +1763,8 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
 
     console.log(`Scraping ZonaProp: ${url}`)
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+    const response = await fetchWithTimeout(url, {
+      headers: getScrapingHeaders('https://www.zonaprop.com.ar/')
     })
 
     if (!response.ok) return []
@@ -1913,10 +1954,8 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
 
     console.log(`Scraping Buscainmueble: ${url}`)
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+    const response = await fetchWithTimeout(url, {
+      headers: getScrapingHeaders('https://www.buscainmueble.com/')
     })
 
     if (!response.ok) {
