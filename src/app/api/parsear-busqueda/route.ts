@@ -97,7 +97,7 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
   }
 }
 
-// POST: Parsear mensaje de WhatsApp (parser local)
+// POST: Parsear mensaje de WhatsApp
 export async function POST(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser()
@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
     // Intentar primero con IA si está configurada, de lo contrario usar parser local
     let busquedaParseada: BusquedaParseada;
     let usandoIA = false;
@@ -132,19 +133,106 @@ export async function POST(request: NextRequest) {
       busquedaParseada = parsearBusquedaLocal(mensaje);
     }
 
-    // Buscar coincidencias en DB
-    const matches = await encontrarMatchesEnDb(busquedaParseada)
-    // Generar links a portales externos
-    const webMatches = generarLinksExternos(busquedaParseada)
-    
-    // Scrapear resultados reales (MercadoLibre + ArgenProp + Remax)
-    const [mlItems, apItems, remaxItems] = await Promise.all([
-        scrapearMercadoLibre(busquedaParseada),
-        scrapearArgenProp(busquedaParseada),
-        scrapearRemax(busquedaParseada)
+    let guardadoInfo = null;
+
+    // Si se pide guardar, crear cliente y búsqueda
+    if (guardar) {
+      let cliente = null
+
+      // Si se proporciona clienteId, usarlo directamente
+      if (clienteId) {
+        cliente = await prisma.cliente.findUnique({
+          where: { id: clienteId }
+        })
+        
+        if (!cliente) {
+          return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+        }
+
+        if (cliente.inmobiliariaId !== currentUser.inmobiliariaId) {
+          return NextResponse.json({ error: 'No autorizado para este cliente' }, { status: 403 })
+        }
+      } else {
+        const nombreFallback = `Cliente WhatsApp ${new Date().toLocaleDateString()}`
+        const nombreParaGuardar = busquedaParseada.nombreCliente || nombreFallback
+
+        cliente = await prisma.cliente.findFirst({
+          where: {
+            inmobiliariaId: currentUser.inmobiliariaId,
+            OR: [
+               ...(busquedaParseada.telefono ? [{ telefono: busquedaParseada.telefono }] : []),
+               { nombreCompleto: nombreParaGuardar }
+            ]
+          }
+        })
+
+        if (!cliente) {
+          try {
+            cliente = await prisma.cliente.create({
+              data: {
+                nombreCompleto: nombreParaGuardar,
+                telefono: busquedaParseada.telefono,
+                inmobiliariaId: currentUser.inmobiliariaId!,
+                usuarioId: currentUser.id,
+              }
+            })
+          } catch (e: any) {
+             if (e.code === 'P2002') {
+                cliente = await prisma.cliente.findFirst({
+                  where: {
+                    nombreCompleto: nombreParaGuardar,
+                    inmobiliariaId: currentUser.inmobiliariaId
+                  }
+                })
+             }
+             if (!cliente) throw e
+          }
+        }
+      }
+
+      if (cliente) {
+        const busqueda = await prisma.busqueda.create({
+          data: {
+            clienteId: cliente.id,
+            tipoPropiedad: busquedaParseada.tipoPropiedad,
+            presupuestoTexto: busquedaParseada.presupuestoMax 
+              ? `${busquedaParseada.moneda} ${busquedaParseada.presupuestoMax.toLocaleString()}`
+              : null,
+            presupuestoValor: busquedaParseada.presupuestoMax,
+            moneda: busquedaParseada.moneda,
+            ubicacionPreferida: busquedaParseada.zonas.join(', '),
+            dormitoriosMin: busquedaParseada.dormitoriosMin,
+            cochera: busquedaParseada.cochera ? 'SI' : 'NO',
+            observaciones: `Operación: ${busquedaParseada.operacion}\n${busquedaParseada.notas}\n\nCaracterísticas: ${busquedaParseada.caracteristicas.join(', ')}\n\n--- Mensaje original ---\n${mensaje}`,
+            origen: 'PERSONALIZADA',
+            estado: 'ACTIVA',
+            createdBy: currentUser.id,
+          }
+        })
+        guardadoInfo = {
+          clienteId: cliente.id,
+          clienteNombre: cliente.nombreCompleto,
+          busquedaId: busqueda.id,
+        }
+      }
+    }
+
+    // Buscar coincidencias y scraping paralelo
+    const [matches, webMatches] = await Promise.all([
+      encontrarMatchesEnDb(busquedaParseada),
+      Promise.resolve(generarLinksExternos(busquedaParseada))
     ])
     
-    const allScraped = [...mlItems, ...apItems, ...remaxItems]
+    console.log('Iniciando scraping paralelo de portales...')
+    const [mlItems, apItems, remaxItems, zpItems, biItems] = await Promise.all([
+      scrapearMercadoLibre(busquedaParseada),
+      scrapearArgenProp(busquedaParseada),
+      scrapearRemax(busquedaParseada),
+      scrapearZonaProp(busquedaParseada),
+      scrapearBuscainmueble(busquedaParseada)
+    ])
+
+    const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
     const uniqueScraped = Array.from(new Map(allScraped.map(item => [item.url, item])).values())
 
     return NextResponse.json({
@@ -154,7 +242,7 @@ export async function POST(request: NextRequest) {
       webMatches,
       scrapedItems: uniqueScraped,
       usandoIA,
-      guardado: null
+      guardado: guardadoInfo
     })
   } catch (error: unknown) {
     console.error('Error parseando búsqueda:', error)
