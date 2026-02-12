@@ -113,11 +113,23 @@ export async function POST(request: NextRequest) {
         { error: 'El mensaje es muy corto para analizar' },
         { status: 400 }
       )
-    }
+    // Intentar primero con IA si está configurada, de lo contrario usar parser local
+    let busquedaParseada: BusquedaParseada;
+    let usandoIA = false;
 
-    // Usar SOLO parser local (IA deshabilitada por solicitud del usuario)
-    const busquedaParseada = parsearBusquedaLocal(mensaje)
-    const usandoIA = false
+    try {
+      if (process.env.OPENAI_API_KEY) {
+        console.log('Utilizando IA para analizar el mensaje...');
+        busquedaParseada = await parsearBusquedaConIA(mensaje);
+        usandoIA = true;
+      } else {
+        console.log('OPENAI_API_KEY no configurada, usando parser local...');
+        busquedaParseada = parsearBusquedaLocal(mensaje);
+      }
+    } catch (aiError) {
+      console.error('Error con el análisis de IA, usando fallback local:', aiError);
+      busquedaParseada = parsearBusquedaLocal(mensaje);
+    }
 
     // Si se pide guardar, crear cliente y búsqueda
     if (guardar) {
@@ -247,6 +259,24 @@ export async function POST(request: NextRequest) {
           busquedaId: busqueda.id,
         }
       })
+    }
+
+    // Intentar primero con IA si está configurada, de lo contrario usar parser local
+    let busquedaParseada: BusquedaParseada;
+    let usandoIA = false;
+
+    try {
+      if (process.env.OPENAI_API_KEY) {
+        console.log('Utilizando IA para analizar el mensaje...');
+        busquedaParseada = await parsearBusquedaConIA(mensaje);
+        usandoIA = true;
+      } else {
+        console.log('OPENAI_API_KEY no configurada, usando parser local...');
+        busquedaParseada = parsearBusquedaLocal(mensaje);
+      }
+    } catch (aiError) {
+      console.error('Error con el análisis de IA, usando fallback local:', aiError);
+      busquedaParseada = parsearBusquedaLocal(mensaje);
     }
 
     // Buscar coincidencias en DB
