@@ -112,8 +112,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'El mensaje es muy corto para analizar' },
         { status: 400 }
-      }
-
+      )
+    }
     // Intentar primero con IA si está configurada, de lo contrario usar parser local
     let busquedaParseada: BusquedaParseada;
     let usandoIA = false;
