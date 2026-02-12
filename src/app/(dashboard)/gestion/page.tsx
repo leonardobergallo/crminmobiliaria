@@ -102,6 +102,50 @@ function GestionClienteContent() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias'>(tabFromUrl || 'busquedas')
   
+  const enviarPropiedadesWhatsApp = (items: any[], tipo: 'enviados' | 'sugerencias') => {
+    if (!items || items.length === 0 || !clienteSeleccionado) return
+
+    // Construir cabecera de búsqueda (usando la búsqueda de Sugerencias si existe)
+    let tituloBusqueda = 'Propiedades Seleccionadas'
+    const b = sugerencias?.busqueda
+    if (b) {
+      const partes: string[] = []
+      if (b.tipoPropiedad) partes.push(b.tipoPropiedad.toLowerCase())
+      if (b.ubicacionPreferida) partes.push(`en ${b.ubicacionPreferida}`)
+      if (b.moneda && b.presupuestoValor) {
+        partes.push(`hasta ${b.moneda} ${b.presupuestoValor.toLocaleString('es-AR')}`)
+      }
+      if (partes.length > 0) tituloBusqueda = partes.join(' - ')
+    }
+
+    let texto = `*🔍 Búsqueda: ${tituloBusqueda}*\n\n`
+    texto += `*Oportunidades Encontradas para ${clienteSeleccionado.nombreCompleto}* 🏠\n\n`
+    
+    items.forEach((item) => {
+      const prop = tipo === 'sugerencias' ? item : item.propiedad
+      const titulo = prop ? (prop.titulo || prop.ubicacion) : (item.tituloExterno || item.urlExterna || 'Propiedad')
+      const precio = prop ? (prop.precio ? `${prop.moneda || 'USD'} ${prop.precio.toLocaleString()}` : 'Consultar') : 'Consultar'
+      const url = prop ? (prop.urlMls || '') : (item.urlExterna || '')
+      const ubicacion = prop ? (prop.zona || prop.ubicacion) : 'Ver en el link'
+
+      texto += `*${precio}*\n`
+      texto += `💰 ${precio}\n`
+      texto += `📍 ${ubicacion}\n`
+      if (url) texto += `🔗 ${url}\n`
+      texto += `\n`
+    })
+
+    const mensajeFinal = texto.trim()
+    const telefono = clienteSeleccionado.telefono?.replace(/\D/g, '') || ''
+    
+    if (telefono) {
+      window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensajeFinal)}`, '_blank')
+    } else {
+      navigator.clipboard.writeText(mensajeFinal)
+      alert('¡Lista armada y copiada! (Cliente sin teléfono registrado)')
+    }
+  }
+
   // Forms
   const [mostrarFormBusqueda, setMostrarFormBusqueda] = useState(false)
   const [mostrarFormEnvio, setMostrarFormEnvio] = useState(false)
@@ -313,8 +357,20 @@ function GestionClienteContent() {
 
   const abrirWhatsApp = () => {
     if (!clienteSeleccionado?.telefono) return
-    const telefono = clienteSeleccionado.telefono.replace(/\D/g, '')
-    window.open(`https://wa.me/${telefono}`, '_blank')
+    
+    const propsParaCompartir = [...(sugerencias?.sugerencias || []), ...(sugerencias?.adicionales || [])]
+    
+    if (propsParaCompartir.length > 0) {
+      // Si hay sugerencias, armar el mensaje completo
+      enviarPropiedadesWhatsApp(propsParaCompartir, 'sugerencias')
+    } else if (envios.length > 0) {
+      // Si no hay sugerencias pero hay envíos, armar el historial
+      enviarPropiedadesWhatsApp(envios, 'enviados')
+    } else {
+      // Si no hay nada, solo abrir el chat
+      const telefono = clienteSeleccionado.telefono.replace(/\D/g, '')
+      window.open(`https://wa.me/${telefono}`, '_blank')
+    }
   }
 
   const handleCrearBusqueda = async (e: React.FormEvent) => {
@@ -476,21 +532,21 @@ function GestionClienteContent() {
                   onClick={() => setTab('sugerencias')}
                   size="sm"
                 >
-                  🎯 Sugerencias
+                  🎯 Sugerencias ({((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0))})
                 </Button>
                 <Button
                   variant={tab === 'envios' ? 'default' : 'outline'}
                   onClick={() => setTab('envios')}
                   size="sm"
                 >
-                  📤 Enviados ({envios.length})
+                  📤 Historial de Propiedades ({envios.length})
                 </Button>
                 <Button
                   variant={tab === 'comunicaciones' ? 'default' : 'outline'}
                   onClick={() => setTab('comunicaciones')}
                   size="sm"
                 >
-                  💬 Historial
+                  💬 Notas / Coms ({comunicaciones.length})
                 </Button>
               </div>
 
@@ -789,13 +845,24 @@ function GestionClienteContent() {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <CardTitle>🎯 Propiedades para Enviar</CardTitle>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => setMostrarFormEnvio(true)}
-                      >
-                        + Link Externo
-                      </Button>
+                      <div className="flex gap-2">
+                        {((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0)) > 0 && (
+                          <Button 
+                            size="sm" 
+                            className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                            onClick={() => enviarPropiedadesWhatsApp([...(sugerencias?.sugerencias || []), ...(sugerencias?.adicionales || [])], 'sugerencias')}
+                          >
+                            📱 Enviar todo por WhatsApp
+                          </Button>
+                        )}
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setMostrarFormEnvio(true)}
+                        >
+                          + Link Externo
+                        </Button>
+                      </div>
                     </div>
                     {sugerencias?.busqueda && (
                       <p className="text-sm text-slate-600">
@@ -839,7 +906,7 @@ function GestionClienteContent() {
 
                     {/* Lista de sugerencias */}
                     <div className="space-y-3">
-                      {sugerencias?.sugerencias.length === 0 && sugerencias?.adicionales.length === 0 ? (
+                      {(sugerencias?.sugerencias?.length || 0) === 0 && (sugerencias?.adicionales?.length || 0) === 0 ? (
                         <p className="text-slate-500 text-center py-4">
                           No hay propiedades nuevas para sugerir
                         </p>
@@ -883,7 +950,18 @@ function GestionClienteContent() {
               {tab === 'envios' && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>📤 Propiedades Enviadas</CardTitle>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>📤 Propiedades Enviadas</CardTitle>
+                      {envios.length > 0 && (
+                        <Button 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                          onClick={() => enviarPropiedadesWhatsApp(envios, 'enviados')}
+                        >
+                          📱 Re-enviar Historial
+                        </Button>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {envios.length === 0 ? (

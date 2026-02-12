@@ -99,6 +99,10 @@ function ParsearBusquedaContent() {
   const [error, setError] = useState<string | null>(null)
   const [usandoIA, setUsandoIA] = useState<boolean>(false)
 
+  // Estado para vinculación manual
+  const [formManual, setFormManual] = useState({ titulo: '', url: '', nota: '' })
+  const [mostrandoManual, setMostrandoManual] = useState(false)
+
   useEffect(() => {
     fetchClientes()
   }, [])
@@ -255,6 +259,46 @@ function ParsearBusquedaContent() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Estado para vincular a CRM
+  const [vinculandoId, setVinculandoId] = useState<string | null>(null)
+  const [vinculados, setVinculados] = useState<Set<string>>(new Set())
+
+  const vincularAlCliente = async (item: { url?: string, titulo: string, propiedadId?: string, mensaje?: string }) => {
+    if (!clienteSeleccionado) {
+      setError('Por favor, selecciona o crea un cliente primero.')
+      return
+    }
+
+    const uniqueId = item.url || item.propiedadId || 'manual'
+    setVinculandoId(uniqueId)
+    try {
+      const res = await fetch('/api/envios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: clienteSeleccionado,
+          propiedadId: item.propiedadId,
+          urlExterna: item.url,
+          tituloExterno: item.titulo,
+          mensaje: item.mensaje, // Para guardar el resultado/nota manual
+          canal: 'WHATSAPP'
+        })
+      })
+
+      if (res.ok) {
+        setVinculados(prev => new Set(prev).add(uniqueId))
+      } else {
+        const data = await res.json()
+        setError(data.error || 'Error al vincular')
+      }
+    } catch (err) {
+      console.error(err)
+      setError('Error de conexión')
+    } finally {
+      setVinculandoId(null)
     }
   }
 
@@ -780,6 +824,15 @@ Ejemplo:
                       >
                         Ver Ficha
                       </Button>
+                      <Button 
+                        variant={vinculados.has(prop.id) ? "ghost" : "default"}
+                        size="sm"
+                        className={vinculados.has(prop.id) ? "text-green-600 border-green-200" : "bg-blue-600 hover:bg-blue-700"}
+                        disabled={!clienteSeleccionado || vinculandoId === prop.id || vinculados.has(prop.id)}
+                        onClick={() => vincularAlCliente({ propiedadId: prop.id, titulo: prop.titulo })}
+                      >
+                        {vinculados.has(prop.id) ? '✅ Guardado' : '📥 Guardar'}
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -912,6 +965,73 @@ Ejemplo:
         </Card>
       )}
 
+      {/* Opción de Carga Manual */}
+      {clienteSeleccionado && (
+        <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50">
+          <CardContent className="pt-6">
+            {!mostrandoManual ? (
+              <Button 
+                variant="ghost" 
+                className="w-full border-dashed border-2 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 py-6 h-auto"
+                onClick={() => setMostrandoManual(true)}
+              >
+                ➕ ¿Encontraste otra propiedad? Cargala manualmente al historial
+              </Button>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-semibold text-slate-800">Cargar propiedad manual</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setMostrandoManual(false)}>Cancelar</Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500">Título / Descripción</label>
+                    <Input 
+                      placeholder="Ej: Depto 2 amb en Recoleta" 
+                      value={formManual.titulo}
+                      onChange={e => setFormManual({...formManual, titulo: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-500">Link / URL (opcional)</label>
+                    <Input 
+                      placeholder="https://..." 
+                      value={formManual.url}
+                      onChange={e => setFormManual({...formManual, url: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-500">Resultado / Nota (opcional)</label>
+                  <Input 
+                    placeholder="Ej: Interesado, visitado, etc." 
+                    value={formManual.nota}
+                    onChange={e => setFormManual({...formManual, nota: e.target.value})}
+                  />
+                </div>
+                <Button 
+                  className="w-full bg-slate-800 hover:bg-slate-900"
+                  disabled={!formManual.titulo || vinculandoId === 'manual'}
+                  onClick={async () => {
+                    setVinculandoId('manual')
+                    await vincularAlCliente({ 
+                      url: formManual.url || undefined, 
+                      titulo: `MANUAL: ${formManual.titulo}`,
+                      mensaje: formManual.nota // Pasamos la nota como mensaje
+                    })
+                    setFormManual({ titulo: '', url: '', nota: '' })
+                    setMostrandoManual(false)
+                    setVinculandoId(null)
+                  }}
+                >
+                  {vinculandoId === 'manual' ? 'Guardando...' : '📥 Guardar en Gestión del Cliente'}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Resultados SCRAPED (Web en vivo) */}
       {scrapedItems.length > 0 && (
         <Card className="border-yellow-200 bg-yellow-50/30">
@@ -944,13 +1064,23 @@ Ejemplo:
                         <span className="text-sm text-slate-500">📍 {item.ubicacion}</span>
                      </div>
                   </div>
-                  <div className="flex items-end">
+                  <div className="flex flex-col gap-2 items-end justify-center">
                      <Button 
                         variant="outline" 
                         size="sm" 
+                        className="w-full"
                         onClick={() => window.open(item.url, '_blank')}
                      >
-                       Ver ficha
+                       🔎 Ver ficha
+                     </Button>
+                     <Button 
+                        variant={vinculados.has(item.url) ? "ghost" : "default"}
+                        size="sm"
+                        className={`w-full ${vinculados.has(item.url) ? "text-green-600 border-green-200" : "bg-indigo-600 hover:bg-indigo-700"}`}
+                        disabled={!clienteSeleccionado || vinculandoId === item.url || vinculados.has(item.url)}
+                        onClick={() => vincularAlCliente({ url: item.url, titulo: `${item.sitio}: ${item.titulo}` })}
+                     >
+                       {vinculados.has(item.url) ? '✅ Guardado' : '📥 Guardar'}
                      </Button>
                   </div>
                </div>
