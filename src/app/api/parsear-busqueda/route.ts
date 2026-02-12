@@ -67,7 +67,6 @@ function getScrapingHeaders(referer: string = 'https://www.google.com/') {
 
 async function fetchWithTimeout(url: string, options: any = {}, timeout: number = 8000) {
   // Soporte para Proxy de Scraping (opcional)
-  // Si existe SCRAPER_PROXY_URL, se asume que acepta un parámetro ?url=
   const proxyUrl = process.env.SCRAPER_PROXY_URL
   const finalUrl = proxyUrl 
     ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}url=${encodeURIComponent(url)}` 
@@ -79,8 +78,10 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
     controller.abort()
   }, timeout)
   try {
+    // Forzar no-cache para evitar que Vercel guarde páginas de bloqueo
     const response = await fetch(finalUrl, {
       ...options,
+      cache: 'no-store',
       signal: controller.signal
     })
     clearTimeout(id)
@@ -92,7 +93,7 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
     } else {
       console.error(`Error en fetch para ${url}:`, error.message)
     }
-    throw error
+    return { ok: false, status: 0, statusText: error.message } as any
   }
 }
 
@@ -1068,79 +1069,58 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
     if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
     
-    // SIEMPRE buscar en Santa Fe Capital
-    // Mejorar detección de zona para URL
     let zonaStr = criterios.zonas.length > 0 ? criterios.zonas[0] : 'santa-fe'
-    
-    // Lista blanca de zonas permitidas (Santa Fe y alrededores)
     const zonasSantaFe = ['santa-fe', 'rincon', 'santo-tome', 'sauce-viejo', 'arroyo-leyes', 'recreo', 'colastine']
     const esZonaLocal = zonasSantaFe.some(z => zonaStr.toLowerCase().includes(z))
-    
-    if (!esZonaLocal) {
-        // Si la zona detectada no es local conocida, forzamos santa-fe
-        zonaStr = 'santa-fe'
-    }
+    if (!esZonaLocal) zonaStr = 'santa-fe'
 
     const zonaLimipia = zonaStr.toLowerCase().replace(/[^a-z0-9]/g, '-')
-    
-    // Intentamos URL de búsqueda directa que suele ser más permisiva
-    // Format: https://listado.mercadolibre.com.ar/inmuebles/{tipo}/{operacion}/{zona}
-    
-    // Estrategia "Fina": Si es Santa Fe Capital, usar "santa-fe/santa-fe-capital"
     let zonaQuery = zonaLimipia
     if (zonaQuery === 'santa-fe' || zonaQuery.includes('santa-fe-capital')) {
         zonaQuery = 'santa-fe/santa-fe-capital'
     } else if (!zonaQuery.includes('santa-fe')) {
-        // Para Rincón, Santo Tomé, etc., agregar prefijo de provincia
         zonaQuery = `santa-fe/${zonaQuery}`
     }
 
-    // La URL siempre apunta a Santa Fe, así que confiamos en ella
-    const urlBusquedaEsSantaFe = true
+    // LISTADO DE URLs A INTENTAR (Desktop y Mobile como fallback)
+    const urlsToTry = [
+      `https://listado.mercadolibre.com.ar/inmuebles/${tipo}/${operacion}/${zonaQuery}`,
+      `https://inmuebles.mercadolibre.com.ar/${tipo}/${operacion}/${zonaQuery}`,
+      `https://www.mercadolibre.com.ar/inmuebles/${tipo}/${operacion}/${zonaQuery}`
+    ]
+
+    let html = ''
+    let lastUrl = ''
     
-    let url = `https://listado.mercadolibre.com.ar/inmuebles/${tipo}/${operacion}/${zonaQuery}`
-    
-    // Agregar filtro de dormitorios si está disponible (ML permite esto en algunos casos)
-    if (criterios.dormitoriosMin) {
-      // MercadoLibre permite agregar dormitorios en la query string
-      url += `?DORMITORIOS=${criterios.dormitoriosMin}`
-    }
-    
-    // Filtro anti-ruido (Buenos Aires, Rosario)
-    // Agregamos término de búsqueda negativo en la query string si es posible, 
-    // pero ML lo maneja mejor con la URL
-    
-    if (criterios.presupuestoMax && !criterios.dormitoriosMin) {
-      url += url.includes('?') ? '&_ORDER_BY_PRICE_ASC' : '?_ORDER_BY_PRICE_ASC'
-    } else if (criterios.presupuestoMax && criterios.dormitoriosMin) {
-      url += '&_ORDER_BY_PRICE_ASC'
+    for (const url of urlsToTry) {
+      if (criterios.dormitoriosMin) {
+        lastUrl = url + `?DORMITORIOS=${criterios.dormitoriosMin}`
+      } else {
+        lastUrl = url
+      }
+
+      console.log(`Intentando scraping MercadoLibre: ${lastUrl}`)
+      const response = await fetchWithTimeout(lastUrl, {
+        headers: getScrapingHeaders('https://www.mercadolibre.com.ar/')
+      })
+
+      if (response.ok) {
+        const text = await response.text()
+        if (text && text.length > 1000 && !text.toLowerCase().includes('robot') && !text.toLowerCase().includes('atención')) {
+          html = text
+          break // Éxito, salir del bucle
+        } else {
+          console.warn(`MercadoLibre: URL bloqueada o inválida, intentando siguiente... URL: ${lastUrl}`)
+        }
+      }
     }
 
-    console.log(`Scraping MercadoLibre: ${url}`)
-    
-    const response = await fetchWithTimeout(url, {
-      headers: getScrapingHeaders('https://www.mercadolibre.com.ar/')
-    })
-
-    if (!response.ok) {
-      console.error(`MercadoLibre: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
-      return []
-    }
-
-    const html = await response.text()
-    if (!html || html.length < 500) {
-      console.warn(`MercadoLibre: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+    if (!html) {
+      console.error(`MercadoLibre: Todos los intentos fallaron o fueron bloqueados.`)
       return []
     }
 
     const $ = cheerio.load(html)
-    
-    // Debug: Verificar título de la página para detectar CAPTCHAs o bloqueos
-    const pageTitle = $('title').text()
-    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot')) {
-      console.warn(`MercadoLibre: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
-    }
-    
     const items: any[] = []
 
     // SOPORTE PARA MÚLTIPLES DISEÑOS DE ML (Lista vs Grilla/Poly vs otros)
