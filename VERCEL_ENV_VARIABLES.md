@@ -49,6 +49,20 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 **Valor**: `openai`
 
+---
+
+## Variables de Scraping (Opcionales para evitar bloqueos)
+
+### `SCRAPER_PROXY_URL`
+**Descripción**: URL de un servicio de proxy para scraping (ej: ScraperAPI, ScrapingBee). Ayuda a evitar que los portales inmobiliarios bloqueen las peticiones desde Vercel.
+
+**Ejemplo**:
+```
+SCRAPER_PROXY_URL=https://api.scraperapi.com?api_key=TU_API_KEY&render=false
+```
+
+**Nota**: El sistema añadirá automáticamente `&url=URL_DESTINO` al final. Usa `render=false` para mayor velocidad, ya que el sistema ya procesa el HTML.
+
 **Ejemplo**:
 ```
 AI_PROVIDER=openai

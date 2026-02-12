@@ -32,42 +32,66 @@ function getRandomUserAgent() {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1'
   ]
   return agents[Math.floor(Math.random() * agents.length)]
 }
 
 function getScrapingHeaders(referer: string = 'https://www.google.com/') {
+  const ua = getRandomUserAgent()
+  const isMobile = ua.includes('iPhone') || ua.includes('iPad') || ua.includes('Mobile')
+  
   return {
-    'User-Agent': getRandomUserAgent(),
+    'User-Agent': ua,
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+    'Accept-Language': 'es-AR,es;q=0.9,en-US;q=0.8,en;q=0.7',
     'Accept-Encoding': 'gzip, deflate, br',
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Ch-Ua': isMobile 
+      ? '"Not A(Brand";v="99", "Apple HTML";v="17", "Safari";v="17"'
+      : '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+    'Sec-Ch-Ua-Mobile': isMobile ? '?1' : '?0',
+    'Sec-Ch-Ua-Platform': isMobile ? '"iOS"' : '"Windows"',
     'Sec-Fetch-Dest': 'document',
     'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'cross-site',
-    'Upgrade-Insecure-Requests': '1'
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'DNT': '1'
   }
 }
 
 async function fetchWithTimeout(url: string, options: any = {}, timeout: number = 8000) {
+  // Soporte para Proxy de Scraping (opcional)
+  // Si existe SCRAPER_PROXY_URL, se asume que acepta un parámetro ?url=
+  const proxyUrl = process.env.SCRAPER_PROXY_URL
+  const finalUrl = proxyUrl 
+    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}url=${encodeURIComponent(url)}` 
+    : url
+
   const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeout)
+  const id = setTimeout(() => {
+    console.warn(`Timeout de ${timeout}ms alcanzado para: ${url}`)
+    controller.abort()
+  }, timeout)
   try {
-    const response = await fetch(url, {
+    const response = await fetch(finalUrl, {
       ...options,
       signal: controller.signal
     })
     clearTimeout(id)
     return response
-  } catch (error) {
+  } catch (error: any) {
     clearTimeout(id)
+    if (error.name === 'AbortError') {
+      console.error(`Petición abortada (timeout) para: ${url}`)
+    } else {
+      console.error(`Error en fetch para ${url}:`, error.message)
+    }
     throw error
   }
 }
@@ -190,18 +214,23 @@ export async function POST(request: NextRequest) {
       
       // Scrapear resultados reales (MercadoLibre + ArgenProp + Remax + ZonaProp + Buscainmueble)
       // Ejecutamos en paralelo para velocidad
-      const [mlItems, apItems, remaxItems, zpItems, biItems] = await Promise.all([
-        scrapearMercadoLibre(busquedaParseada),
-        scrapearArgenProp(busquedaParseada),
-        scrapearRemax(busquedaParseada),
-        scrapearZonaProp(busquedaParseada),
-        scrapearBuscainmueble(busquedaParseada)
-      ])
-
-      // Combinar y deduplicar por URL
-      const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
+    console.log('Iniciando scraping paralelo de 5 portales...')
+    const startTime = Date.now()
     
-      // Deduplicar: Preferir ArgenProp sobre ML si parecen iguales, o solo por URL única
+    const [mlItems, apItems, remaxItems, zpItems, biItems] = await Promise.all([
+      scrapearMercadoLibre(busquedaParseada),
+      scrapearArgenProp(busquedaParseada),
+      scrapearRemax(busquedaParseada),
+      scrapearZonaProp(busquedaParseada),
+      scrapearBuscainmueble(busquedaParseada)
+    ])
+
+    const duration = Date.now() - startTime
+    console.log(`Scraping completado en ${duration}ms`)
+
+    // Combinar y deduplicar por URL
+    const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
+    console.log(`Total de items scrapeados: ${allScraped.length}`)
       const uniqueScraped = Array.from(new Map(allScraped.map(item => [item.url, item])).values())
 
       return NextResponse.json({
@@ -1094,12 +1123,23 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     })
 
     if (!response.ok) {
-      console.log(`MercadoLibre: Error HTTP ${response.status} para URL: ${url}`)
+      console.error(`MercadoLibre: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
+    if (!html || html.length < 500) {
+      console.warn(`MercadoLibre: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      return []
+    }
+
     const $ = cheerio.load(html)
+    
+    // Debug: Verificar título de la página para detectar CAPTCHAs o bloqueos
+    const pageTitle = $('title').text()
+    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot')) {
+      console.warn(`MercadoLibre: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
+    }
     
     const items: any[] = []
 
@@ -1350,16 +1390,24 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     })
 
     if (!response.ok) {
-      console.log(`ArgenProp: Error HTTP ${response.status} para URL: ${url}`)
+      console.error(`ArgenProp: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
+    if (!html || html.length < 500) {
+      console.warn(`ArgenProp: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      return []
+    }
+
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido
+    // Debug: Verificar si la página tiene contenido o bloqueos
     const pageTitle = $('title').text()
     console.log(`ArgenProp: Título de página: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden')) {
+      console.warn(`ArgenProp: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
+    }
     
     const items: any[] = []
     
@@ -1565,16 +1613,24 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     })
 
     if (!response.ok) {
-      console.log(`Remax: Error HTTP ${response.status} para URL: ${url}`)
+      console.error(`Remax: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
+    if (!html || html.length < 500) {
+      console.warn(`Remax: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      return []
+    }
+
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido
+    // Debug: Verificar si la página tiene contenido o bloqueos
     const pageTitle = $('title').text()
     console.log(`Remax: Título de página: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('access denied')) {
+      console.warn(`Remax: Posible bloqueo detectado. Título: ${pageTitle}`)
+    }
     
     const items: any[] = []
     
@@ -1767,10 +1823,25 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
       headers: getScrapingHeaders('https://www.zonaprop.com.ar/')
     })
 
-    if (!response.ok) return []
+    if (!response.ok) {
+      console.error(`ZonaProp: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
+      return []
+    }
 
     const html = await response.text()
+    if (!html || html.length < 500) {
+      console.warn(`ZonaProp: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      return []
+    }
+
     const $ = cheerio.load(html)
+    
+    // Debug: Verificar si la página tiene contenido o bloqueos
+    const pageTitle = $('title').text()
+    console.log(`ZonaProp: Título de página: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      console.warn(`ZonaProp: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
+    }
     
     const items: any[] = []
     
@@ -1959,12 +2030,24 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     })
 
     if (!response.ok) {
-      console.log(`Buscainmueble: Error HTTP ${response.status} para URL: ${url}`)
+      console.error(`Buscainmueble: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
+    if (!html || html.length < 500) {
+      console.warn(`Buscainmueble: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      return []
+    }
+
     const $ = cheerio.load(html)
+    
+    // Debug: Verificar si la página tiene contenido o bloqueos
+    const pageTitle = $('title').text()
+    console.log(`Buscainmueble: Título de página: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      console.warn(`Buscainmueble: Posible bloqueo detectado. Título: ${pageTitle}`)
+    }
     
     const items: any[] = []
     
