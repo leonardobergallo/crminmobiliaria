@@ -47,20 +47,71 @@ export default function BusquedasPage() {
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-  const [selectedBusqueda, setSelectedBusqueda] = useState<Busqueda | null>(null)
+  const [analisisResultado, setAnalisisResultado] = useState<any>(null)
+  const [analisisError, setAnalisisError] = useState<string | null>(null)
+  const [analizandoId, setAnalizandoId] = useState<string | null>(null)
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
+  const [linkExterno, setLinkExterno] = useState('')
+  const [linkExternoTitulo, setLinkExternoTitulo] = useState('')
+  const [linkSeleccionado, setLinkSeleccionado] = useState<string | null>(null)
   const [usuarios, setUsuarios] = useState<any[]>([])
 
   const [formData, setFormData] = useState({
     clienteId: '',
     origen: 'ACTIVA',
-    presupuestoTexto: '',
+    moneda: 'USD',
+    presupuestoDesde: '',
+    presupuestoHasta: '',
     tipoPropiedad: '',
-    ubicacionPreferida: '',
+    provincia: 'Santa Fe',
+    ciudad: 'Santa Fe Capital',
+    barrio: '',
     dormitoriosMin: '',
     observaciones: '',
   })
 
   const [clientes, setClientes] = useState<any[]>([])
+
+  const CIUDADES_SANTA_FE = [
+    'Santa Fe Capital',
+    'Santa Fe y alrededores',
+    'Recreo',
+    'Santo Tomé',
+    'Sauce Viejo',
+    'Arroyo Leyes',
+    'Colastiné',
+  ]
+
+  const BARRIOS_SANTA_FE_CAPITAL = [
+    'Centro',
+    'Microcentro',
+    'Barrio Norte',
+    'Barrio Sur',
+    'Candioti',
+    'Candioti Norte',
+    'Candioti Sur',
+    '7 Jefes',
+    'Bulevar',
+    'Constituyentes',
+    'Guadalupe',
+    'Guadalupe Este',
+    'Guadalupe Oeste',
+    'Recoleta',
+    'Mayoraz',
+    'Roma',
+    'Las Flores',
+    'Fomento 9 de Julio',
+    'Barranquitas',
+    'Los Hornos',
+    'Ciudadela',
+    'San Martín',
+    'Puerto',
+    'Costanera',
+    'Villa Setubal',
+    'Sargento Cabral',
+    'María Selva',
+    'Dentro de Bulevares',
+  ]
 
   useEffect(() => {
     fetchCurrentUser()
@@ -154,6 +205,16 @@ export default function BusquedasPage() {
   const fetchClientes = async () => {
     try {
       const response = await fetch('/api/clientes')
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/login')
+          return
+        }
+        console.error('Error al obtener clientes:', response.status)
+        setClientes([])
+        return
+      }
+
       if (response.ok) {
         const data = await response.json()
         // Asegurarse de que data sea un array
@@ -195,17 +256,36 @@ export default function BusquedasPage() {
         origen: (formData.origen || 'ACTIVA').trim(),
       }
 
-      // Campos opcionales - solo agregar si tienen valor
-      if (formData.presupuestoTexto && formData.presupuestoTexto.trim() !== '') {
-        payload.presupuestoTexto = formData.presupuestoTexto.trim()
+      // Presupuesto (rango)
+      const desde = formData.presupuestoDesde ? parseInt(formData.presupuestoDesde) : NaN
+      const hasta = formData.presupuestoHasta ? parseInt(formData.presupuestoHasta) : NaN
+
+      if (!isNaN(desde) || !isNaN(hasta)) {
+        payload.moneda = formData.moneda
+
+        if (!isNaN(desde) && !isNaN(hasta)) {
+          payload.presupuestoTexto = `${formData.moneda} ${desde}-${hasta}`
+          payload.presupuestoValor = hasta
+        } else if (!isNaN(hasta)) {
+          payload.presupuestoTexto = `${formData.moneda} ${hasta}`
+          payload.presupuestoValor = hasta
+        } else if (!isNaN(desde)) {
+          payload.presupuestoTexto = `${formData.moneda} desde ${desde}`
+        }
       }
 
       if (formData.tipoPropiedad && formData.tipoPropiedad.trim() !== '') {
         payload.tipoPropiedad = formData.tipoPropiedad.trim()
       }
 
-      if (formData.ubicacionPreferida && formData.ubicacionPreferida.trim() !== '') {
-        payload.ubicacionPreferida = formData.ubicacionPreferida.trim()
+      // Ubicación (Santa Fe)
+      const ubicacionPartes: string[] = []
+      if (formData.barrio) ubicacionPartes.push(formData.barrio)
+      if (formData.ciudad) ubicacionPartes.push(formData.ciudad)
+      if (formData.provincia) ubicacionPartes.push(formData.provincia)
+      const ubicacionPreferida = ubicacionPartes.join(', ')
+      if (ubicacionPreferida) {
+        payload.ubicacionPreferida = ubicacionPreferida
       }
 
       if (formData.observaciones && formData.observaciones.trim() !== '') {
@@ -220,8 +300,6 @@ export default function BusquedasPage() {
         }
       }
 
-      console.log('Enviando payload a /api/busquedas:', JSON.stringify(payload, null, 2))
-
       const response = await fetch('/api/busquedas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,61 +311,20 @@ export default function BusquedasPage() {
         setFormData({
           clienteId: '',
           origen: 'ACTIVA',
-          presupuestoTexto: '',
+          moneda: 'USD',
+          presupuestoDesde: '',
+          presupuestoHasta: '',
           tipoPropiedad: '',
-          ubicacionPreferida: '',
+          provincia: 'Santa Fe',
+          ciudad: 'Santa Fe Capital',
+          barrio: '',
           dormitoriosMin: '',
           observaciones: '',
         })
-        fetchBusquedas()
-        alert('Búsqueda creada correctamente')
+        await fetchBusquedas()
       } else {
-        // Obtener el mensaje de error del servidor
-        let errorMessage = 'Error desconocido'
-        let errorDetails: any = null
-        
-        try {
-          const text = await response.text()
-          console.error('Error al crear búsqueda - Respuesta raw:', text)
-          console.error('Error al crear búsqueda - Status:', response.status)
-          
-          if (text) {
-            try {
-              const errorData = JSON.parse(text)
-              console.error('Error al crear búsqueda - JSON parseado:', errorData)
-              errorDetails = errorData
-              
-              // Construir mensaje de error más descriptivo
-              if (errorData.error) {
-                errorMessage = errorData.error
-              } else if (errorData.details) {
-                if (typeof errorData.details === 'string') {
-                  errorMessage = errorData.details
-                } else if (errorData.details.message) {
-                  errorMessage = errorData.details.message
-                }
-              } else if (errorData.message) {
-                errorMessage = errorData.message
-              }
-            } catch (parseError) {
-              console.error('Error al parsear JSON de error:', parseError)
-              errorMessage = text || `Error ${response.status}: ${response.statusText}`
-            }
-          } else {
-            errorMessage = `Error ${response.status}: ${response.statusText || 'Sin respuesta del servidor'}`
-          }
-        } catch (e) {
-          console.error('Error al leer respuesta de error:', e)
-          errorMessage = `Error ${response.status}: No se pudo leer la respuesta del servidor`
-        }
-        
-        // Mostrar error con detalles si están disponibles
-        if (errorDetails?.details && process.env.NODE_ENV === 'development') {
-          console.error('Detalles del error:', errorDetails.details)
-          alert(`Error al crear búsqueda: ${errorMessage}\n\nDetalles: ${JSON.stringify(errorDetails.details, null, 2)}`)
-        } else {
-          alert(`Error al crear búsqueda: ${errorMessage}`)
-        }
+        const errorData = await response.json().catch(() => null)
+        alert(errorData?.error || 'Error al crear búsqueda')
       }
     } catch (error: any) {
       console.error('Error:', error)
@@ -299,6 +336,106 @@ export default function BusquedasPage() {
     return busqueda.usuario?.nombre || 
            busqueda.cliente.usuario?.nombre || 
            'Sin asignar'
+  }
+
+  const buildMensajeFromBusqueda = (b: Busqueda) => {
+    const partes: string[] = []
+    if (b.tipoPropiedad) partes.push(`Busco ${b.tipoPropiedad}`)
+    if (b.ubicacionPreferida) partes.push(`en ${b.ubicacionPreferida}`)
+
+    const moneda = (b as any).moneda || 'USD'
+    const desdeMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/desde\s+(\d+)/i) : null
+    const rangoMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/(\d+)\s*[-–]\s*(\d+)/) : null
+
+    if (rangoMatch) {
+      const d = parseInt(rangoMatch[1])
+      const h = parseInt(rangoMatch[2])
+      if (!isNaN(d) && !isNaN(h)) partes.push(`presupuesto entre ${moneda} ${d} y ${h}`)
+    } else if (desdeMatch) {
+      const d = parseInt(desdeMatch[1])
+      if (!isNaN(d)) partes.push(`presupuesto desde ${moneda} ${d}`)
+    } else if (typeof b.presupuestoTexto === 'string' && b.presupuestoTexto.trim()) {
+      partes.push(`presupuesto hasta ${b.presupuestoTexto}`)
+    }
+
+    if (typeof b.dormitoriosMin === 'number' && b.dormitoriosMin > 0) {
+      partes.push(`${b.dormitoriosMin} dormitorios mínimo`)
+    }
+    partes.push('Enviar opciones')
+    return partes.join('. ') + '.'
+  }
+
+  const toggleSeleccion = (key: string) => {
+    setSeleccionadas((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const guardarBusqueda = () => {
+    if (!analisisResultado?.clienteId) return
+    const items = Array.from(seleccionadas).map((k) => {
+      const [tipo, idx] = k.split(':')
+      const i = parseInt(idx, 10)
+      if (tipo === 'web' && analisisResultado?.data?.webMatches?.[i]) return { tipo: 'web', item: analisisResultado.data.webMatches[i] }
+      if (tipo === 'match' && analisisResultado?.data?.matches?.[i]) return { tipo: 'match', item: analisisResultado.data.matches[i] }
+      return null
+    }).filter(Boolean)
+    if (linkSeleccionado) {
+      items.push({ tipo: 'externo', item: { url: linkSeleccionado, titulo: linkExternoTitulo || 'Link externo' } })
+    }
+    const params = new URLSearchParams()
+    params.set('clienteId', analisisResultado.clienteId)
+    params.set('propSeleccionadas', JSON.stringify(items))
+    window.location.href = `/gestion?${params.toString()}`
+  }
+
+  const analizarBusqueda = async (b: Busqueda) => {
+    setAnalisisError(null)
+    setAnalisisResultado(null)
+    setAnalizandoId(b.id)
+    try {
+      const mensaje = buildMensajeFromBusqueda(b)
+      const res = await fetch('/api/parsear-busqueda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensaje, guardar: false, clienteId: null }),
+      })
+
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setAnalisisError(data?.error || 'Error al analizar')
+        return
+      }
+
+      try {
+        localStorage.setItem(
+          'ultimaWebResult',
+          JSON.stringify({
+            savedAt: new Date().toISOString(),
+            source: 'busquedas',
+            busquedaId: b.id,
+            clienteId: b.cliente?.id,
+            clienteLabel: b.cliente?.nombreCompleto,
+            data,
+          })
+        )
+      } catch {
+        // ignore
+      }
+
+      setAnalisisResultado({ busquedaId: b.id, clienteId: b.cliente?.id, clienteLabel: b.cliente?.nombreCompleto, data })
+      setSeleccionadas(new Set())
+      setLinkSeleccionado(null)
+      setLinkExterno('')
+      setLinkExternoTitulo('')
+    } catch (e: any) {
+      setAnalisisError(e?.message || 'Error de conexión')
+    } finally {
+      setAnalizandoId(null)
+    }
   }
 
   // Asegurarse de que busquedas sea un array antes de filtrar
@@ -353,7 +490,7 @@ export default function BusquedasPage() {
                   <option value="">Seleccionar cliente</option>
                   {clientes.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.nombreCompleto}
+                      {c.nombreCompleto || c.nombre || c.id}
                     </option>
                   ))}
                 </select>
@@ -382,16 +519,28 @@ export default function BusquedasPage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Presupuesto
                   </label>
-                  <Input
-                    value={formData.presupuestoTexto}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        presupuestoTexto: e.target.value,
-                      })
-                    }
-                    placeholder="Ej: 75 MIL DOLARES"
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={formData.moneda}
+                      onChange={(e) => setFormData({ ...formData, moneda: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
+                    >
+                      <option value="USD">USD</option>
+                      <option value="ARS">ARS</option>
+                    </select>
+                    <Input
+                      type="number"
+                      value={formData.presupuestoDesde}
+                      onChange={(e) => setFormData({ ...formData, presupuestoDesde: e.target.value })}
+                      placeholder="Desde"
+                    />
+                    <Input
+                      type="number"
+                      value={formData.presupuestoHasta}
+                      onChange={(e) => setFormData({ ...formData, presupuestoHasta: e.target.value })}
+                      placeholder="Hasta"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -419,18 +568,9 @@ export default function BusquedasPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Ubicación Preferida
+                    Provincia
                   </label>
-                  <Input
-                    value={formData.ubicacionPreferida}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        ubicacionPreferida: e.target.value,
-                      })
-                    }
-                    placeholder="Zona/Barrio"
-                  />
+                  <Input value={formData.provincia} disabled />
                 </div>
 
                 <div>
@@ -448,6 +588,50 @@ export default function BusquedasPage() {
                     }
                     placeholder="Ej: 2"
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Ciudad
+                  </label>
+                  <select
+                    value={formData.ciudad}
+                    onChange={(e) => {
+                      const nuevaCiudad = e.target.value
+                      setFormData({
+                        ...formData,
+                        ciudad: nuevaCiudad,
+                        barrio: nuevaCiudad === 'Santa Fe Capital' ? formData.barrio : '',
+                      })
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
+                  >
+                    {CIUDADES_SANTA_FE.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Barrio
+                  </label>
+                  <select
+                    value={formData.barrio}
+                    onChange={(e) => setFormData({ ...formData, barrio: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
+                    disabled={formData.ciudad !== 'Santa Fe Capital'}
+                  >
+                    <option value="">(opcional)</option>
+                    {BARRIOS_SANTA_FE_CAPITAL.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -568,12 +752,21 @@ export default function BusquedasPage() {
                       </TableCell>
                     )}
                     <TableCell className="text-right">
-                      <button 
-                        onClick={() => setSelectedBusqueda(busqueda)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        Ver
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <button
+                          onClick={() => analizarBusqueda(busqueda)}
+                          className="text-green-700 hover:underline"
+                          disabled={analizandoId === busqueda.id}
+                        >
+                          {analizandoId === busqueda.id ? 'Analizando...' : 'Analizar'}
+                        </button>
+                        <button
+                          onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          Ir
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -583,328 +776,234 @@ export default function BusquedasPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de detalle */}
-      {selectedBusqueda && (
-        <BusquedaDetailModal
-          busqueda={selectedBusqueda}
-          currentUser={currentUser}
-          onClose={() => setSelectedBusqueda(null)}
-          onUpdate={fetchBusquedas}
-        />
-      )}
-    </div>
-  )
-}
-
-// Componente Modal de Detalle
-function BusquedaDetailModal({
-  busqueda,
-  currentUser,
-  onClose,
-  onUpdate,
-}: {
-  busqueda: Busqueda
-  currentUser: CurrentUser | null
-  onClose: () => void
-  onUpdate: () => void
-}) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    estado: busqueda.estado,
-    presupuestoTexto: busqueda.presupuestoTexto || '',
-    tipoPropiedad: busqueda.tipoPropiedad || '',
-    ubicacionPreferida: busqueda.ubicacionPreferida || '',
-    dormitoriosMin: busqueda.dormitoriosMin?.toString() || '',
-    observaciones: busqueda.observaciones || '',
-    origen: busqueda.origen,
-  })
-
-  // Verificar si el usuario puede editar esta búsqueda
-  const canEdit = currentUser?.rol === 'admin' || 
-                  busqueda.usuario?.id === currentUser?.id ||
-                  busqueda.cliente.usuario?.id === currentUser?.id
-
-  const handleSave = async () => {
-    if (!canEdit) return
-
-    setSaving(true)
-    try {
-      const payload: any = {
-        presupuestoTexto: formData.presupuestoTexto || null,
-        tipoPropiedad: formData.tipoPropiedad || null,
-        ubicacionPreferida: formData.ubicacionPreferida || null,
-        dormitoriosMin: formData.dormitoriosMin ? parseInt(formData.dormitoriosMin) : null,
-        observaciones: formData.observaciones || null,
-        origen: formData.origen,
-      }
-
-      // Solo admin puede cambiar el estado
-      if (currentUser?.rol === 'admin') {
-        payload.estado = formData.estado
-      }
-
-      const response = await fetch(`/api/busquedas/${busqueda.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        setIsEditing(false)
-        onUpdate()
-        alert('Búsqueda actualizada correctamente')
-      } else {
-        const errorData = await response.json()
-        alert(errorData.error || 'Error al actualizar búsqueda')
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Error al actualizar búsqueda')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleEstadoChange = async (newEstado: string) => {
-    if (!currentUser || currentUser.rol !== 'admin') return
-
-    setFormData({ ...formData, estado: newEstado })
-    // Guardar automáticamente cuando admin cambia el estado
-    setSaving(true)
-    try {
-      const response = await fetch(`/api/busquedas/${busqueda.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: newEstado }),
-      })
-
-      if (response.ok) {
-        onUpdate()
-      } else {
-        alert('Error al actualizar estado')
-        setFormData({ ...formData, estado: busqueda.estado })
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Error al actualizar estado')
-      setFormData({ ...formData, estado: busqueda.estado })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Detalle de Búsqueda</CardTitle>
-            <button
-              onClick={onClose}
-              className="text-slate-500 hover:text-slate-700"
-            >
-              ✕
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Información del Cliente (solo lectura) */}
-          <div>
-            <h3 className="font-semibold text-slate-700 mb-2">Cliente</h3>
-            <p className="text-slate-900">{busqueda.cliente.nombreCompleto}</p>
-            {busqueda.cliente.usuario && (
-              <p className="text-sm text-slate-600">
-                Agente asignado: {busqueda.cliente.usuario.nombre}
-              </p>
+      {(analisisError || analisisResultado) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Resultado del análisis</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {analisisError && (
+              <div className="text-sm text-red-600">{analisisError}</div>
             )}
-            {busqueda.usuario && (
-              <p className="text-sm text-slate-600">
-                Creado por: {busqueda.usuario.nombre}
-              </p>
-            )}
-          </div>
-
-          {/* Campos editables */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Presupuesto
-              </label>
-              {isEditing ? (
-                <Input
-                  value={formData.presupuestoTexto}
-                  onChange={(e) => setFormData({ ...formData, presupuestoTexto: e.target.value })}
-                  placeholder="Ej: 75 MIL DOLARES"
-                />
-              ) : (
-                <p className="text-slate-900">{formData.presupuestoTexto || '-'}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Tipo de Propiedad
-              </label>
-              {isEditing ? (
-                <select
-                  value={formData.tipoPropiedad}
-                  onChange={(e) => setFormData({ ...formData, tipoPropiedad: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md"
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="DEPARTAMENTO">Departamento</option>
-                  <option value="CASA">Casa</option>
-                  <option value="OTRO">Otro</option>
-                </select>
-              ) : (
-                <p className="text-slate-900">{formData.tipoPropiedad || '-'}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Ubicación Preferida
-              </label>
-              {isEditing ? (
-                <Input
-                  value={formData.ubicacionPreferida}
-                  onChange={(e) => setFormData({ ...formData, ubicacionPreferida: e.target.value })}
-                  placeholder="Zona/Barrio"
-                />
-              ) : (
-                <p className="text-slate-900">{formData.ubicacionPreferida || '-'}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Dormitorios Mínimo
-              </label>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  value={formData.dormitoriosMin}
-                  onChange={(e) => setFormData({ ...formData, dormitoriosMin: e.target.value })}
-                  placeholder="Ej: 2"
-                />
-              ) : (
-                <p className="text-slate-900">{formData.dormitoriosMin || '-'}</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Origen
-            </label>
-            {isEditing ? (
-              <select
-                value={formData.origen}
-                onChange={(e) => setFormData({ ...formData, origen: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md"
-              >
-                <option value="ACTIVA">Activa</option>
-                <option value="PERSONALIZADA">Personalizada</option>
-                <option value="CALIFICADA_EFECTIVO">Calificada (Efectivo)</option>
-                <option value="CALIFICADA_CREDITO">Calificada (Crédito)</option>
-              </select>
-            ) : (
-              <p className="text-slate-900">{formData.origen}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Observaciones
-            </label>
-            {isEditing ? (
-              <textarea
-                value={formData.observaciones}
-                onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
-                placeholder="Notas adicionales"
-                className="w-full px-3 py-2 border border-slate-300 rounded-md min-h-[80px]"
-              />
-            ) : (
-              <p className="text-slate-900 whitespace-pre-wrap">{formData.observaciones || '-'}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Estado
-            </label>
-            {currentUser?.rol === 'admin' ? (
-              <select
-                value={formData.estado}
-                onChange={(e) => handleEstadoChange(e.target.value)}
-                disabled={saving || isEditing}
-                className="px-3 py-2 border border-slate-300 rounded-md"
-              >
-                <option value="NUEVO">Nuevo</option>
-                <option value="CALIFICADO">Calificado</option>
-                <option value="VISITA">Visita</option>
-                <option value="RESERVA">Reserva</option>
-                <option value="CERRADO">Cerrado</option>
-                <option value="PERDIDO">Perdido</option>
-              </select>
-            ) : (
-              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-slate-200">
-                {formData.estado}
-              </span>
-            )}
-          </div>
-
-          <div className="flex gap-2 pt-4 border-t">
-            {canEdit && (
+            {analisisResultado && (
               <>
-                {isEditing ? (
-                  <>
-                    <Button 
-                      onClick={handleSave} 
-                      disabled={saving}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {saving ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                    <Button 
-                      onClick={() => {
-                        setIsEditing(false)
-                        // Restaurar valores originales
-                        setFormData({
-                          estado: busqueda.estado,
-                          presupuestoTexto: busqueda.presupuestoTexto || '',
-                          tipoPropiedad: busqueda.tipoPropiedad || '',
-                          ubicacionPreferida: busqueda.ubicacionPreferida || '',
-                          dormitoriosMin: busqueda.dormitoriosMin?.toString() || '',
-                          observaciones: busqueda.observaciones || '',
-                          origen: busqueda.origen,
-                        })
-                      }} 
-                      variant="outline"
-                      disabled={saving}
-                    >
-                      Cancelar
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    onClick={() => setIsEditing(true)}
-                    className="bg-blue-600 hover:bg-blue-700"
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+                  Análisis completado.
+                </div>
+
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!analisisResultado?.clienteId}
+                    onClick={() => {
+                      const clienteId = analisisResultado?.clienteId
+                      if (!clienteId) return
+                      window.location.href = `/gestion?clienteId=${clienteId}`
+                    }}
                   >
-                    Editar
+                    Ir a Gestión del Cliente
                   </Button>
+                  {(seleccionadas.size > 0 || linkSeleccionado) && (
+                    <Button
+                      type="button"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={guardarBusqueda}
+                    >
+                      Guardar búsqueda y pasar a Gestión del Cliente
+                    </Button>
+                  )}
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Link externo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Input
+                      placeholder="Título del link..."
+                      value={linkExternoTitulo}
+                      onChange={(e) => setLinkExternoTitulo(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Pegá un link de afuera..."
+                      value={linkExterno}
+                      onChange={(e) => setLinkExterno(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!linkExterno.trim()}
+                      onClick={() => setLinkSeleccionado(linkExterno.trim())}
+                    >
+                      Seleccionar link
+                    </Button>
+                    {linkSeleccionado && (
+                      <div className="text-sm text-green-700">
+                        ✅ Link seleccionado: {linkExternoTitulo || 'Sin título'} - {linkSeleccionado}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {Array.isArray(analisisResultado?.data?.scrapedItems) && analisisResultado.data.scrapedItems.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Oportunidades en Portales ({analisisResultado.data.scrapedItems.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-sm text-slate-600 mb-2">
+                        (Para investigación, no es necesario seleccionar)
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {analisisResultado.data.scrapedItems.map((item: any, idx: number) => (
+                          <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
+                            {item?.img ? (
+                              <img
+                                src={item.img}
+                                alt={item?.titulo || 'propiedad'}
+                                className="w-20 h-20 object-cover rounded"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded bg-slate-100" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-500">
+                                {item?.sitio || 'Portal'}
+                              </div>
+                              <div className="text-sm font-semibold text-slate-900 line-clamp-2">
+                                {item?.titulo || '-'}
+                              </div>
+                              <div className="text-sm font-bold text-slate-900 mt-1">
+                                {item?.precio || '-'}
+                              </div>
+                              <div className="text-xs text-slate-600 line-clamp-1">
+                                {item?.ubicacion || '-'}
+                              </div>
+                              <div className="flex gap-2 mt-2">
+                                {item?.url && (
+                                  <a
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-600 hover:underline text-sm"
+                                  >
+                                    Ver
+                                  </a>
+                                )}
+                                <div className="text-xs text-slate-500">
+                                  📍 {item?.url || '-'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {Array.isArray(analisisResultado?.data?.webMatches) && analisisResultado.data.webMatches.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Links sugeridos ({analisisResultado.data.webMatches.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {analisisResultado.data.webMatches.map((w: any, idx: number) => (
+                          <div key={`${w?.url || idx}`} className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:shadow-sm">
+                            <input
+                              type="checkbox"
+                              checked={seleccionadas.has(`web:${idx}`)}
+                              onChange={() => toggleSeleccion(`web:${idx}`)}
+                              className="mt-1"
+                            />
+                            <div className="text-2xl">{w?.icon || '🌐'}</div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-slate-900">
+                                {w?.sitio || 'Link'}
+                              </div>
+                              <div className="text-xs text-slate-600 line-clamp-1">
+                                {w?.titulo || w?.url}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {w?.url && (
+                                <a
+                                  href={w.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-600 hover:underline text-sm"
+                                >
+                                  Ver
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {Array.isArray(analisisResultado?.data?.matches) && analisisResultado.data.matches.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Propiedades del CRM ({analisisResultado.data.matches.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="space-y-2">
+                        {analisisResultado.data.matches.map((m: any, idx: number) => (
+                          <div key={`${m?.id || idx}`} className="p-3 bg-white border rounded-lg">
+                            <div className="flex items-start justify-between gap-3">
+                              <input
+                                type="checkbox"
+                                checked={seleccionadas.has(`match:${idx}`)}
+                                onChange={() => toggleSeleccion(`match:${idx}`)}
+                                className="mt-1"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-slate-900 line-clamp-1">
+                                  {m?.titulo || m?.propiedad?.titulo || 'Propiedad'}
+                                </div>
+                                <div className="text-xs text-slate-600 line-clamp-1">
+                                  {m?.ubicacion || m?.propiedad?.ubicacion || '-'}
+
+                                </div>
+                              </div>
+                              <div className="text-sm font-bold text-slate-900 whitespace-nowrap">
+                                {m?.precio ? `${m?.moneda || ''} ${m?.precio}` : (m?.propiedad?.precio ? `${m?.propiedad?.moneda || ''} ${m?.propiedad?.precio}` : '-')}
+
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
               </>
             )}
-            <Button onClick={onClose} variant="outline">
-              Cerrar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAnalisisError(null)
+                  setAnalisisResultado(null)
+                  setSeleccionadas(new Set())
+                  setLinkSeleccionado(null)
+                  setLinkExterno('')
+                  setLinkExternoTitulo('')
+                }}
+              >
+                Cerrar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
