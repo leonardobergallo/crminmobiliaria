@@ -15,6 +15,7 @@ type UltimaWebPayload = {
 }
 
 const STORAGE_KEY = 'ultimaWebResult'
+const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
 
 export default function UltimaWebPage() {
   const router = useRouter()
@@ -34,11 +35,40 @@ export default function UltimaWebPage() {
   }, [])
 
   const resultado = payload?.data
+  const busquedaParseada = resultado?.busquedaParseada
+
+  const handleNuevaBusquedaPreCargada = () => {
+    if (!busquedaParseada) {
+      router.push('/busquedas')
+      return
+    }
+
+    const tipo = ['DEPARTAMENTO', 'CASA', 'OTRO'].includes(busquedaParseada.tipoPropiedad)
+      ? busquedaParseada.tipoPropiedad
+      : 'OTRO'
+
+    const draft = {
+      clienteId: payload?.clienteId || '',
+      origen: 'PERSONALIZADA',
+      moneda: busquedaParseada.moneda || 'USD',
+      presupuestoDesde: busquedaParseada.presupuestoMin ? String(busquedaParseada.presupuestoMin) : '',
+      presupuestoHasta: busquedaParseada.presupuestoMax ? String(busquedaParseada.presupuestoMax) : '',
+      tipoPropiedad: tipo,
+      provincia: 'Santa Fe',
+      ciudad: 'Santa Fe Capital',
+      barrio: '',
+      dormitoriosMin: busquedaParseada.dormitoriosMin ? String(busquedaParseada.dormitoriosMin) : '',
+      observaciones: busquedaParseada.notas || '',
+    }
+
+    localStorage.setItem(BUSQUEDA_DRAFT_KEY, JSON.stringify(draft))
+    router.push('/busquedas')
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold text-slate-900">Última Web</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Ultima Web</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => router.push('/busquedas')}>Volver</Button>
           <Button
@@ -55,8 +85,16 @@ export default function UltimaWebPage() {
 
       {!payload ? (
         <Card>
-          <CardContent className="py-10 text-center text-slate-600">
-            No hay un análisis web guardado todavía.
+          <CardContent className="py-10 text-center space-y-4">
+            <div className="text-slate-600">No hay un analisis web guardado todavia.</div>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <Button onClick={() => router.push('/parsear')} className="bg-sky-600 hover:bg-sky-700">
+                Buscar con IA
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/busquedas')}>
+                Ir a Busquedas
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -72,8 +110,32 @@ export default function UltimaWebPage() {
                 <div><span className="font-semibold">Cliente:</span> {payload.clienteLabel}</div>
               )}
               {payload.busquedaId && (
-                <div><span className="font-semibold">Búsqueda ID:</span> {payload.busquedaId}</div>
+                <div><span className="font-semibold">Busqueda ID:</span> {payload.busquedaId}</div>
               )}
+              {busquedaParseada && (
+                <div className="pt-2 mt-2 border-t border-slate-200 space-y-1">
+                  <div><span className="font-semibold">Tipo:</span> {busquedaParseada.tipoPropiedad || '-'}</div>
+                  <div><span className="font-semibold">Operacion:</span> {busquedaParseada.operacion || '-'}</div>
+                  <div><span className="font-semibold">Presupuesto:</span> {busquedaParseada.moneda || 'USD'} {busquedaParseada.presupuestoMax ? Number(busquedaParseada.presupuestoMax).toLocaleString() : '-'}</div>
+                </div>
+              )}
+              <div className="flex gap-2 flex-wrap pt-3">
+                {payload.clienteId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push(`/gestion?clienteId=${payload.clienteId}`)}
+                    className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                  >
+                    Ver cliente
+                  </Button>
+                )}
+                <Button onClick={handleNuevaBusquedaPreCargada} className="bg-emerald-600 hover:bg-emerald-700">
+                  Nueva busqueda (pre-cargada)
+                </Button>
+                <Button variant="outline" onClick={() => router.push(`/parsear${payload.clienteId ? `?clienteId=${payload.clienteId}` : ''}`)}>
+                  Nueva busqueda con IA
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -102,8 +164,13 @@ export default function UltimaWebPage() {
                       <div className="text-xs text-slate-600 line-clamp-1">{item?.ubicacion || '-'}</div>
                       {item?.url && (
                         <div className="mt-2">
-                          <a href={item.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
-                            Ver
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:border-sky-300"
+                          >
+                            Ver publicacion
                           </a>
                         </div>
                       )}
@@ -128,7 +195,7 @@ export default function UltimaWebPage() {
                     rel="noreferrer"
                     className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:shadow-sm"
                   >
-                    <div className="text-2xl">{w?.icon || '🌐'}</div>
+                    <div className="text-2xl">{w?.icon || 'WEB'}</div>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-slate-900">{w?.sitio || 'Link'}</div>
                       <div className="text-xs text-slate-600 line-clamp-1">{w?.titulo || w?.url}</div>

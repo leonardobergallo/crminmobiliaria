@@ -38,6 +38,8 @@ interface CurrentUser {
   rol: string
 }
 
+const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
+
 export default function BusquedasPage() {
   const router = useRouter()
   const [busquedas, setBusquedas] = useState<Busqueda[]>([])
@@ -123,6 +125,35 @@ export default function BusquedasPage() {
       if (currentUser.rol === 'admin') {
         fetchUsuarios()
       }
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    if (!currentUser) return
+
+    try {
+      const raw = localStorage.getItem(BUSQUEDA_DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+
+      setFormData((prev) => ({
+        ...prev,
+        clienteId: typeof draft.clienteId === 'string' ? draft.clienteId : prev.clienteId,
+        origen: typeof draft.origen === 'string' ? draft.origen : prev.origen,
+        moneda: typeof draft.moneda === 'string' ? draft.moneda : prev.moneda,
+        presupuestoDesde: typeof draft.presupuestoDesde === 'string' ? draft.presupuestoDesde : prev.presupuestoDesde,
+        presupuestoHasta: typeof draft.presupuestoHasta === 'string' ? draft.presupuestoHasta : prev.presupuestoHasta,
+        tipoPropiedad: typeof draft.tipoPropiedad === 'string' ? draft.tipoPropiedad : prev.tipoPropiedad,
+        provincia: typeof draft.provincia === 'string' ? draft.provincia : prev.provincia,
+        ciudad: typeof draft.ciudad === 'string' ? draft.ciudad : prev.ciudad,
+        barrio: typeof draft.barrio === 'string' ? draft.barrio : prev.barrio,
+        dormitoriosMin: typeof draft.dormitoriosMin === 'string' ? draft.dormitoriosMin : prev.dormitoriosMin,
+        observaciones: typeof draft.observaciones === 'string' ? draft.observaciones : prev.observaciones,
+      }))
+      setMostrarForm(true)
+      localStorage.removeItem(BUSQUEDA_DRAFT_KEY)
+    } catch {
+      localStorage.removeItem(BUSQUEDA_DRAFT_KEY)
     }
   }, [currentUser])
 
