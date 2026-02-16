@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +26,7 @@ type Busqueda = {
   createdAt?: string | null
 }
 
-export default function ParsearBusquedaPage() {
+function ParsearBusquedaContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const clienteIdFromUrl = searchParams.get('clienteId')
@@ -526,5 +526,13 @@ export default function ParsearBusquedaPage() {
         </Card>
       )}
     </div>
+  )
+}
+
+export default function ParsearBusquedaPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Cargando...</div>}>
+      <ParsearBusquedaContent />
+    </Suspense>
   )
 }
