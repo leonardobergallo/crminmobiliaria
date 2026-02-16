@@ -6,9 +6,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser()
 
-    if (!currentUser || !['superadmin', 'admin'].includes(currentUser.rol)) {
+    if (!currentUser) {
       return NextResponse.json(
-        { error: 'No autorizado - Solo superadmin o admin puede eliminar búsquedas' },
+        { error: 'No autorizado' },
         { status: 401 }
       )
     }
@@ -53,3 +53,4 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
+

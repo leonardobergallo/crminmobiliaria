@@ -6,9 +6,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser()
 
-    if (!currentUser || currentUser.rol !== 'superadmin') {
+    if (!currentUser) {
       return NextResponse.json(
-        { error: 'No autorizado - Solo superadmin puede eliminar clientes' },
+        { error: 'No autorizado' },
         { status: 401 }
       )
     }

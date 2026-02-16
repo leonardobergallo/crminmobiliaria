@@ -752,20 +752,24 @@ export default function BusquedasPage() {
                       </TableCell>
                     )}
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-3">
-                        <button
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => analizarBusqueda(busqueda)}
-                          className="text-green-700 hover:underline"
+                          className="h-8 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
                           disabled={analizandoId === busqueda.id}
                         >
                           {analizandoId === busqueda.id ? 'Analizando...' : 'Analizar'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
-                          className="text-blue-600 hover:underline"
+                          className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
                         >
                           Ir
-                        </button>
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

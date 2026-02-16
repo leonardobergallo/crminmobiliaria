@@ -192,17 +192,6 @@ export async function DELETE(
       )
     }
 
-    // Solo admin puede eliminar, o el agente que la creó
-    const canDelete = currentUser.rol === 'admin' || 
-                      busqueda.createdBy === currentUser.id
-
-    if (!canDelete) {
-      return NextResponse.json(
-        { error: 'No tienes permiso para eliminar esta búsqueda' },
-        { status: 403 }
-      )
-    }
-
     await prisma.busqueda.delete({
       where: { id },
     })

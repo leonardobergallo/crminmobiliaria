@@ -310,25 +310,31 @@ export default function ClientesPage() {
                     <TableCell>{cliente.telefono || '-'}</TableCell>
                     <TableCell>{cliente.email || '-'}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <button
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleVerDetalle(cliente)}
-                          className="text-blue-600 hover:underline text-sm"
+                          className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
                         >
                           Ver
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleEdit(cliente)}
-                          className="text-amber-600 hover:underline text-sm"
+                          className="h-8 px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
                         >
                           Editar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleDelete(cliente.id)}
-                          className="text-red-600 hover:underline text-sm"
+                          className="h-8 px-3 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300"
                         >
                           Eliminar
-                        </button>
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

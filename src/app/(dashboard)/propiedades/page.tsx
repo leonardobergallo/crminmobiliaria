@@ -562,39 +562,45 @@ export default function PropiedadesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex flex-wrap gap-2 justify-end">
                         {propiedad.urlMls && (
                           <a
                             href={propiedad.urlMls}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-sm"
+                            className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-medium text-sky-700 hover:bg-sky-50 hover:border-sky-300 transition-colors"
                           >
                             MLS
                           </a>
                         )}
-                        <button
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => {
                             setSelectedPropiedad(propiedad)
                             setAgendaOpen(true)
                           }}
-                          className="text-green-600 hover:underline text-sm"
+                          className="h-8 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
                         >
                           Agendar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleEdit(propiedad)}
-                          className="text-amber-600 hover:underline text-sm"
+                          className="h-8 px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
                           disabled={currentUser?.rol === 'agente' && propiedad.estado !== 'BORRADOR' && propiedad.estado !== undefined}
                         >
                           Editar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleDelete(propiedad.id)}
-                          className="text-red-600 hover:underline text-sm"
+                          className="h-8 px-3 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300"
                         >
                           Eliminar
-                        </button>
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

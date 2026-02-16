@@ -3,24 +3,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils/cn"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 active:scale-[0.99]",
   {
     variants: {
       variant: {
-        default: "bg-sky-500 text-white hover:bg-sky-600 shadow-sm hover:shadow-md",
+        default: "bg-gradient-to-b from-sky-500 to-sky-600 text-white shadow-sm hover:from-sky-600 hover:to-sky-700 hover:shadow-md",
         destructive:
-          "bg-rose-500 text-white hover:bg-rose-600 shadow-sm",
+          "bg-gradient-to-b from-rose-500 to-rose-600 text-white shadow-sm hover:from-rose-600 hover:to-rose-700",
         outline:
-          "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300",
+          "border border-slate-200/90 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:border-slate-300",
         secondary:
           "bg-slate-100 text-slate-800 hover:bg-slate-200",
-        ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+        ghost: "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900",
         link: "text-sky-600 underline-offset-4 hover:underline",
-        success: "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm",
+        success: "bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-sm hover:from-emerald-600 hover:to-emerald-700",
       },
       size: {
         default: "h-10 px-5 py-2",
-        sm: "h-9 rounded-lg px-4 text-xs",
+        sm: "h-8 rounded-lg px-3.5 text-xs",
         lg: "h-12 rounded-xl px-8",
         icon: "h-10 w-10",
       },
