@@ -190,10 +190,12 @@ const Sidebar = () => {
   ]
 
   const adminLinks = [
+    { href: '/admin/tablero-busquedas', label: 'Tablero Búsq.', icon: Icons.busquedas, description: 'Seguimiento de agentes' },
     { href: '/admin/usuarios', label: 'Usuarios', icon: Icons.usuarios, description: 'Gestionar accesos' },
   ]
 
   const superadminLinks = [
+    { href: '/admin/tablero-busquedas', label: 'Tablero Búsq.', icon: Icons.busquedas, description: 'Seguimiento de agentes' },
     { href: '/admin/inmobiliarias', label: 'Inmobiliarias', icon: Icons.inmobiliarias, description: 'Gestionar inmobiliarias' },
     { href: '/admin/usuarios', label: 'Usuarios', icon: Icons.usuarios, description: 'Gestionar accesos' },
   ]

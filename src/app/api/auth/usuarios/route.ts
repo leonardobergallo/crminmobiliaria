@@ -7,14 +7,20 @@ export async function GET() {
   try {
     const currentUser = await getCurrentUser();
     
-    if (!currentUser || currentUser.rol !== 'admin') {
+    if (!currentUser || (currentUser.rol !== 'admin' && currentUser.rol !== 'superadmin')) {
       return NextResponse.json(
         { error: 'Acceso denegado' },
         { status: 403 }
       );
     }
 
+    const where =
+      currentUser.rol === 'superadmin'
+        ? {}
+        : { inmobiliariaId: currentUser.inmobiliariaId };
+
     const usuarios = await prisma.usuario.findMany({
+      where,
       select: {
         id: true,
         nombre: true,
@@ -25,6 +31,7 @@ export async function GET() {
         activo: true,
         lastLogin: true,
         createdAt: true,
+        inmobiliariaId: true,
       },
       orderBy: { nombre: 'asc' },
     });
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
     
-    if (!currentUser || currentUser.rol !== 'admin') {
+    if (!currentUser || (currentUser.rol !== 'admin' && currentUser.rol !== 'superadmin')) {
       return NextResponse.json(
         { error: 'Acceso denegado' },
         { status: 403 }
@@ -49,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { nombre, email, telefono, rol, password } = body;
+    const { nombre, email, telefono, rol, password, inmobiliariaId: inmobiliariaIdBody } = body;
 
     if (!nombre) {
       return NextResponse.json(
@@ -59,9 +66,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar si existe
-    const existe = await prisma.usuario.findFirst({
-      where: { nombre },
-    });
+    const whereExiste: any = currentUser.rol === 'superadmin'
+      ? { OR: [{ nombre }, ...(email ? [{ email }] : [])] }
+      : {
+          inmobiliariaId: currentUser.inmobiliariaId,
+          OR: [{ nombre }, ...(email ? [{ email }] : [])],
+        };
+
+    const existe = await prisma.usuario.findFirst({ where: whereExiste });
 
     if (existe) {
       return NextResponse.json(
@@ -76,6 +88,11 @@ export async function POST(request: NextRequest) {
       hashedPassword = await hashPassword(password);
     }
 
+    const inmobiliariaId =
+      currentUser.rol === 'superadmin'
+        ? (inmobiliariaIdBody || null)
+        : currentUser.inmobiliariaId;
+
     const usuario = await prisma.usuario.create({
       data: {
         nombre,
@@ -84,6 +101,7 @@ export async function POST(request: NextRequest) {
         rol: rol || 'agente',
         password: hashedPassword,
         activo: true,
+        inmobiliariaId,
       },
       select: {
         id: true,
@@ -92,6 +110,7 @@ export async function POST(request: NextRequest) {
         telefono: true,
         rol: true,
         activo: true,
+        inmobiliariaId: true,
       },
     });
 

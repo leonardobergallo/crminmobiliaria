@@ -1,110 +1,198 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import DropZone from '@/components/DropZone';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react'
+import DropZone from '@/components/DropZone'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface ImportResult {
-  success: boolean;
-  message: string;
-  count?: number;
-  error?: string;
+  success: boolean
+  message: string
+  count?: number
+  error?: string
+  details?: Record<string, unknown>
 }
 
 export default function ImportarPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<ImportResult | null>(null);
-  const [fileName, setFileName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [importType, setImportType] = useState<'propiedades' | 'clientes_busquedas'>('propiedades')
+
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    let binary = ''
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 0x8000
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize)
+      binary += String.fromCharCode(...chunk)
+    }
+
+    return btoa(binary)
+  }
 
   const handleFileSelect = async (file: File) => {
-    setFileName(file.name);
-    setIsLoading(true);
-    setResult(null);
+    setFileName(file.name)
+    setIsLoading(true)
+    setResult(null)
 
     try {
-      // Leer archivo y convertir a array buffer
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const arrayBuffer = await file.arrayBuffer()
+      const base64 = arrayBufferToBase64(arrayBuffer)
+      const endpoint = importType === 'propiedades'
+        ? '/api/import-properties'
+        : '/api/import-clientes-busquedas'
 
-      // Enviar al servidor
-      const response = await fetch('/api/import-properties', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: file.name,
           fileData: base64,
         }),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (response.ok) {
-        setResult({
-          success: true,
-          message: `✅ ${data.count} propiedades importadas correctamente`,
-          count: data.count,
-        });
+        if (importType === 'propiedades') {
+          setResult({
+            success: true,
+            message: `${data.count ?? 0} propiedades importadas correctamente`,
+            count: data.count,
+            details: data,
+          })
+        } else {
+          setResult({
+            success: true,
+            message: `Importacion completada: ${data.busquedasCreadas ?? 0} consultas cargadas`,
+            details: data,
+          })
+        }
       } else {
         setResult({
           success: false,
-          message: '❌ Error al importar',
+          message: 'Error al importar',
           error: data.error,
-        });
+        })
       }
     } catch (error) {
       setResult({
         success: false,
-        message: '❌ Error al procesar el archivo',
+        message: 'Error al procesar el archivo',
         error: String(error),
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
+
+  const resultErrors = Array.isArray(result?.details?.errors)
+    ? (result?.details?.errors as string[])
+    : []
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
         <div className="space-y-2 mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">📥 Importar Propiedades</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Importar desde Excel</h1>
           <p className="text-slate-600">
-            Carga un archivo Excel con tus propiedades en venta
+            Carga masiva de datos para acelerar el alta de registros.
           </p>
         </div>
-
-        {/* Formato Esperado */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-base">📋 Formato Esperado</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm text-slate-700">
-              <p className="font-medium">Columnas necesarias en tu Excel:</p>
-              <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded border border-blue-200">
-                <div>• titulo</div>
-                <div>• tipo</div>
-                <div>• zona</div>
-                <div>• descripcion</div>
-                <div>• precio</div>
-                <div>• moneda</div>
-                <div>• ambientes</div>
-                <div>• banos</div>
-                <div>• superficie</div>
-                <div>• direccion</div>
-                <div>• whatsapp</div>
-              </div>
+        <Card className="border-slate-200 bg-slate-50">
+          <CardContent className="pt-4">
+            <div className="text-sm text-slate-700">
+              Paso a paso: `1)` elegi tipo de importacion, `2)` revisa formato esperado, `3)` subi archivo, `4)` valida resumen y corrige errores si aparecen filas omitidas.
             </div>
           </CardContent>
         </Card>
 
-        {/* DropZone */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tipo de importacion</CardTitle>
+            <CardDescription>
+              Define que modulo se actualiza: propiedades del stock o clientes con sus consultas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant={importType === 'propiedades' ? 'default' : 'outline'}
+              onClick={() => {
+                setImportType('propiedades')
+                setResult(null)
+                setFileName('')
+              }}
+            >
+              Propiedades
+            </Button>
+            <Button
+              type="button"
+              variant={importType === 'clientes_busquedas' ? 'default' : 'outline'}
+              onClick={() => {
+                setImportType('clientes_busquedas')
+                setResult(null)
+                setFileName('')
+              }}
+            >
+              Clientes + Consultas
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-blue-50 border-blue-200">
+          <CardHeader>
+            <CardTitle className="text-base">Formato esperado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm text-slate-700">
+              {importType === 'propiedades' ? (
+                <>
+                  <p className="font-medium">Columnas recomendadas para propiedades:</p>
+                  <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded border border-blue-200">
+                    <div>- titulo</div>
+                    <div>- tipo</div>
+                    <div>- zona</div>
+                    <div>- descripcion</div>
+                    <div>- precio</div>
+                    <div>- moneda</div>
+                    <div>- ambientes</div>
+                    <div>- banos</div>
+                    <div>- superficie</div>
+                    <div>- direccion</div>
+                    <div>- whatsapp</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Columnas recomendadas para clientes y consultas:</p>
+                  <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded border border-blue-200">
+                    <div>- cliente o nombre</div>
+                    <div>- telefono</div>
+                    <div>- email</div>
+                    <div>- notasCliente</div>
+                    <div>- origen</div>
+                    <div>- presupuesto</div>
+                    <div>- moneda</div>
+                    <div>- tipoPropiedad</div>
+                    <div>- ubicacion</div>
+                    <div>- dormitoriosMin</div>
+                    <div>- estado</div>
+                    <div>- observaciones</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Selecciona tu archivo</CardTitle>
             <CardDescription>
-              Arrastra y suelta tu archivo Excel aquí
+              Arrastra y suelta tu archivo Excel aqui. Se procesa solo la primera hoja del archivo.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -112,7 +200,6 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
 
-        {/* Nombre del archivo */}
         {fileName && (
           <Card className="bg-slate-50 border-slate-200">
             <CardContent className="pt-6">
@@ -124,7 +211,6 @@ export default function ImportarPage() {
           </Card>
         )}
 
-        {/* Resultado */}
         {result && (
           <Card
             className={`border-2 ${
@@ -138,7 +224,8 @@ export default function ImportarPage() {
                 <p className="text-lg font-semibold text-slate-900">
                   {result.message}
                 </p>
-                {result.count && (
+
+                {typeof result.count === 'number' && (
                   <div className="bg-white rounded p-3 border-2 border-green-200">
                     <p className="text-center text-2xl font-bold text-green-600">
                       {result.count}
@@ -148,15 +235,48 @@ export default function ImportarPage() {
                     </p>
                   </div>
                 )}
+
+                {result.details && importType === 'propiedades' && result.success && (
+                  <div className="grid grid-cols-2 gap-2 text-sm bg-white rounded p-3 border border-green-200">
+                    <div>Filas: {String(result.details.totalFilas ?? '-')}</div>
+                    <div>Creadas: {String(result.details.creadas ?? 0)}</div>
+                    <div>Actualizadas: {String(result.details.actualizadas ?? 0)}</div>
+                    <div>Omitidas: {String(result.details.omitidas ?? 0)}</div>
+                  </div>
+                )}
+
+                {result.details && importType === 'clientes_busquedas' && result.success && (
+                  <div className="grid grid-cols-2 gap-2 text-sm bg-white rounded p-3 border border-green-200">
+                    <div>Filas: {String(result.details.totalFilas ?? '-')}</div>
+                    <div>Clientes nuevos: {String(result.details.clientesCreados ?? 0)}</div>
+                    <div>Clientes actualizados: {String(result.details.clientesActualizados ?? 0)}</div>
+                    <div>Consultas cargadas: {String(result.details.busquedasCreadas ?? 0)}</div>
+                    <div>Consultas duplicadas: {String(result.details.busquedasDuplicadas ?? 0)}</div>
+                    <div>Filas omitidas: {String(result.details.filasOmitidas ?? 0)}</div>
+                  </div>
+                )}
+
+                {resultErrors.length > 0 && (
+                  <div className="bg-white rounded p-3 border-2 border-amber-200">
+                    <p className="text-sm font-medium mb-2">Errores de filas</p>
+                    <ul className="text-xs text-amber-800 space-y-1 max-h-40 overflow-y-auto">
+                      {resultErrors.slice(0, 10).map((error, idx) => (
+                        <li key={`${error}-${idx}`}>- {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {result.error && (
                   <div className="bg-white rounded p-3 border-2 border-red-200">
                     <p className="text-sm text-red-700 font-mono">{result.error}</p>
                   </div>
                 )}
+
                 <Button
                   onClick={() => {
-                    setResult(null);
-                    setFileName('');
+                    setResult(null)
+                    setFileName('')
                   }}
                   className="w-full"
                   variant="outline"
@@ -168,19 +288,29 @@ export default function ImportarPage() {
           </Card>
         )}
 
-        {/* Instrucciones */}
         <Card className="bg-amber-50 border-amber-200">
           <CardHeader>
-            <CardTitle className="text-base">💡 Consejos</CardTitle>
+            <CardTitle className="text-base">Consejos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-slate-700">
-            <p>✓ Verifica que todas las columnas estén presentes</p>
-            <p>✓ La moneda puede ser: ARS, USD, DOLARES</p>
-            <p>✓ Los números se normalizan automáticamente</p>
-            <p>✓ No duplica propiedades si ya existen</p>
+            {importType === 'propiedades' ? (
+              <>
+                <p>- Verifica que las columnas principales esten presentes.</p>
+                <p>- La moneda puede ser ARS o USD.</p>
+                <p>- Los numeros se normalizan automaticamente.</p>
+                <p>- No duplica propiedades si ya existen.</p>
+              </>
+            ) : (
+              <>
+                <p>- Cada fila debe tener al menos el nombre del cliente.</p>
+                <p>- El sistema crea o actualiza cliente y luego carga su consulta.</p>
+                <p>- Si detecta una consulta igual para el mismo cliente, la marca como duplicada.</p>
+                <p>- Revisa el bloque de errores para corregir filas puntuales y volver a subir.</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
-  );
+  )
 }

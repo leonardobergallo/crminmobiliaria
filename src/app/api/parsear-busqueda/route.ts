@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/utils/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import * as cheerio from 'cheerio'
@@ -20,6 +20,188 @@ interface BusquedaParseada {
   caracteristicas: string[]
   notas: string
   confianza: number // 0-100
+}
+
+type FiltrosPortalesInput = {
+  moneda?: string
+  precioDesde?: string | number
+  precioHasta?: string | number
+  dormitoriosMin?: string | number
+  ambientesMin?: string | number
+}
+
+const ZONAS_SANTA_FE_DEFAULT = [
+  'Santa Fe Capital',
+  'Santo Tome',
+  'Sauce Viejo',
+  'Recreo',
+  'Arroyo Leyes',
+  'San Jose del Rincon',
+  'Colastine',
+]
+
+function normalizarZonasSantaFe(zonas: unknown): string[] {
+  const lista = Array.isArray(zonas) ? zonas : []
+  const limpias = lista
+    .map((z) => String(z || '').trim())
+    .filter(Boolean)
+
+  const prohibidas = [
+    'buenos aires',
+    'capital federal',
+    'caba',
+    'palermo',
+    'belgrano',
+    'olivos',
+    'pilar',
+    'escobar',
+    'martinez',
+  ]
+
+  const filtradas = limpias.filter((z) => {
+    const lower = z.toLowerCase()
+    return !prohibidas.some((p) => lower.includes(p))
+  })
+
+  return filtradas.length > 0 ? filtradas : ZONAS_SANTA_FE_DEFAULT
+}
+
+function parseIntOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const cleaned = String(value).replace(/[^\d]/g, '')
+  if (!cleaned) return null
+  const parsed = Number.parseInt(cleaned, 10)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function aplicarFiltrosPortales(
+  criterios: BusquedaParseada,
+  filtros: FiltrosPortalesInput | null | undefined
+): BusquedaParseada {
+  if (!filtros) return criterios
+
+  const moneda = String(filtros.moneda || '').toUpperCase()
+  const precioDesde = parseIntOrNull(filtros.precioDesde)
+  const precioHasta = parseIntOrNull(filtros.precioHasta)
+  const dormitoriosMin = parseIntOrNull(filtros.dormitoriosMin)
+  const ambientesMin = parseIntOrNull(filtros.ambientesMin)
+
+  return {
+    ...criterios,
+    moneda: moneda === 'ARS' || moneda === 'USD' ? moneda : criterios.moneda,
+    presupuestoMin: precioDesde ?? criterios.presupuestoMin,
+    presupuestoMax: precioHasta ?? criterios.presupuestoMax,
+    dormitoriosMin: dormitoriosMin ?? criterios.dormitoriosMin,
+    ambientesMin: ambientesMin ?? criterios.ambientesMin,
+  }
+}
+
+function buildZonaPropUrl(criterios: BusquedaParseada) {
+  const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+  let tipo = 'inmuebles'
+  if (criterios.tipoPropiedad === 'CASA') tipo = 'casas'
+  if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
+  if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
+
+  const dormMin = criterios.dormitoriosMin || null
+  let url = `https://www.zonaprop.com.ar/${tipo}-${operacion}-ciudad-de-santa-fe-sf`
+  if (dormMin) url += `-${dormMin}-habitaciones`
+  url += '.html'
+
+  const params = new URLSearchParams()
+  if (criterios.presupuestoMin) {
+    params.set('precio-desde', String(criterios.presupuestoMin))
+    params.set('price_from', String(criterios.presupuestoMin))
+  }
+  if (criterios.presupuestoMax) {
+    params.set('precio-hasta', String(criterios.presupuestoMax))
+    params.set('price_to', String(criterios.presupuestoMax))
+  }
+  if (criterios.presupuestoMin || criterios.presupuestoMax) {
+    const moneda = criterios.moneda === 'ARS' ? 'ARS' : 'USD'
+    params.set('moneda', moneda)
+    params.set('currency', moneda)
+  }
+  if (criterios.ambientesMin) {
+    params.set('ambientes', String(criterios.ambientesMin))
+  }
+
+  const query = params.toString()
+  return query ? `${url}?${query}` : url
+}
+
+function getDormitoriosFiltro(criterios: BusquedaParseada): number | null {
+  const dorm = criterios.dormitoriosMin ?? null
+  const amb = criterios.ambientesMin ?? null
+  if (dorm && dorm > 0) return dorm
+  if (amb && amb > 0) return amb
+  return null
+}
+
+function buildMercadoLibreUrl(criterios: BusquedaParseada) {
+  const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+  let tipo = 'inmuebles'
+  if (criterios.tipoPropiedad === 'CASA') tipo = 'casas'
+  if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
+  if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
+
+  let url = `https://inmuebles.mercadolibre.com.ar/${tipo}/${operacion}/santa-fe/santa-fe-capital`
+  const params = new URLSearchParams()
+  const dormMin = getDormitoriosFiltro(criterios)
+  if (dormMin) params.set('DORMITORIOS', String(dormMin))
+  if (criterios.presupuestoMax) params.set('precio_hasta', String(criterios.presupuestoMax))
+  if (criterios.presupuestoMin) params.set('precio_desde', String(criterios.presupuestoMin))
+  const query = params.toString()
+  return query ? `${url}?${query}` : url
+}
+
+function buildArgenPropUrl(criterios: BusquedaParseada) {
+  const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+  let tipo = 'inmuebles'
+  if (criterios.tipoPropiedad === 'CASA') tipo = 'casa'
+  if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamento'
+  if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terreno'
+
+  let url = `https://www.argenprop.com/${tipo}-${operacion}-en-santa-fe-capital`
+  const dormMin = getDormitoriosFiltro(criterios)
+  if (dormMin) url += `-${dormMin}-dormitorios`
+  if (criterios.presupuestoMax) {
+    const monedaUrl = criterios.moneda === 'USD' ? 'dolares' : 'pesos'
+    url += `-hasta-${criterios.presupuestoMax}-${monedaUrl}`
+  }
+  return url
+}
+
+function buildRemaxUrl(criterios: BusquedaParseada) {
+  const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+  const params = new URLSearchParams({
+    address: 'Santa Fe, Santa Fe',
+  })
+  if (criterios.presupuestoMax) params.set('maxPrice', String(criterios.presupuestoMax))
+  if (criterios.presupuestoMin) params.set('minPrice', String(criterios.presupuestoMin))
+  const dormMin = getDormitoriosFiltro(criterios)
+  if (dormMin) params.set('rooms', String(dormMin))
+  return `https://www.remax.com.ar/propiedades/en-${operacion}?${params.toString()}`
+}
+
+function buildBuscainmuebleUrl(criterios: BusquedaParseada) {
+  const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+  let tipo = 'propiedades'
+  if (criterios.tipoPropiedad === 'CASA') tipo = 'casas'
+  if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
+  if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
+
+  const params = new URLSearchParams()
+  if (criterios.presupuestoMax) params.set('precio_max', String(criterios.presupuestoMax))
+  if (criterios.presupuestoMin) params.set('precio_min', String(criterios.presupuestoMin))
+  params.set('moneda', criterios.moneda === 'USD' ? 'USD' : 'ARS')
+  const dormMin = getDormitoriosFiltro(criterios)
+  if (dormMin) params.set('dormitorios', String(dormMin))
+  if (criterios.ambientesMin) params.set('ambientes', String(criterios.ambientesMin))
+
+  const query = params.toString()
+  const base = `https://www.buscainmueble.com/propiedades/${tipo}-en-${operacion}-en-santa-fe-santa-fe`
+  return query ? `${base}?${query}` : base
 }
 
 // ----------------------------------------------------------------------
@@ -78,7 +260,7 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
     controller.abort()
   }, timeout)
   try {
-    // Forzar no-cache para evitar que Vercel guarde páginas de bloqueo
+    // Forzar no-cache para evitar que Vercel guarde pÃƒÂ¡ginas de bloqueo
     const response = await fetch(finalUrl, {
       ...options,
       cache: 'no-store',
@@ -89,7 +271,7 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
   } catch (error: any) {
     clearTimeout(id)
     if (error.name === 'AbortError') {
-      console.error(`Petición abortada (timeout) para: ${url}`)
+      console.error(`PeticiÃƒÂ³n abortada (timeout) para: ${url}`)
     } else {
       console.error(`Error en fetch para ${url}:`, error.message)
     }
@@ -106,7 +288,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const { mensaje, guardar, clienteId } = await request.json()
+    const { mensaje, guardar, clienteId, filtrosPortales } = await request.json()
 
     if (!mensaje || mensaje.trim().length < 10) {
       return NextResponse.json(
@@ -115,7 +297,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Intentar primero con IA si está configurada, de lo contrario usar parser local
+    // Intentar primero con IA si estÃƒÂ¡ configurada, de lo contrario usar parser local
     let busquedaParseada: BusquedaParseada;
     let usandoIA = false;
 
@@ -129,13 +311,15 @@ export async function POST(request: NextRequest) {
         busquedaParseada = parsearBusquedaLocal(mensaje);
       }
     } catch (aiError) {
-      console.error('Error con el análisis de IA, usando fallback local:', aiError);
+      console.error('Error con el anÃƒÂ¡lisis de IA, usando fallback local:', aiError);
       busquedaParseada = parsearBusquedaLocal(mensaje);
     }
 
+    busquedaParseada = aplicarFiltrosPortales(busquedaParseada, filtrosPortales)
+
     let guardadoInfo = null;
 
-    // Si se pide guardar, crear cliente y búsqueda
+    // Si se pide guardar, crear cliente y bÃƒÂºsqueda
     if (guardar) {
       let cliente = null
 
@@ -203,7 +387,7 @@ export async function POST(request: NextRequest) {
             ubicacionPreferida: busquedaParseada.zonas.join(', '),
             dormitoriosMin: busquedaParseada.dormitoriosMin,
             cochera: busquedaParseada.cochera ? 'SI' : 'NO',
-            observaciones: `Operación: ${busquedaParseada.operacion}\n${busquedaParseada.notas}\n\nCaracterísticas: ${busquedaParseada.caracteristicas.join(', ')}\n\n--- Mensaje original ---\n${mensaje}`,
+            observaciones: `OperaciÃƒÂ³n: ${busquedaParseada.operacion}\n${busquedaParseada.notas}\n\nCaracterÃƒÂ­sticas: ${busquedaParseada.caracteristicas.join(', ')}\n\n--- Mensaje original ---\n${mensaje}`,
             origen: 'PERSONALIZADA',
             estado: 'ACTIVA',
             createdBy: currentUser.id,
@@ -219,7 +403,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar coincidencias y scraping paralelo
     const [matches, webMatches] = await Promise.all([
-      encontrarMatchesEnDb(busquedaParseada),
+      encontrarMatchesEnDb(busquedaParseada, currentUser),
       Promise.resolve(generarLinksExternos(busquedaParseada))
     ])
     
@@ -234,18 +418,30 @@ export async function POST(request: NextRequest) {
 
     const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
     const uniqueScraped = Array.from(new Map(allScraped.map(item => [item.url, item])).values())
+      .filter((item: any) => esItemDeSantaFe(item))
+    const scrapedDiversificado = diversificarPorPortal(uniqueScraped, 8)
+    const portalStats = {
+      mercadolibre: mlItems.length,
+      argenprop: apItems.length,
+      remax: remaxItems.length,
+      zonaprop: zpItems.length,
+      buscainmueble: biItems.length,
+      totalUnicos: uniqueScraped.length,
+      totalDiversificados: scrapedDiversificado.length,
+    }
 
     return NextResponse.json({
       success: true,
       busquedaParseada,
       matches,
       webMatches,
-      scrapedItems: uniqueScraped,
+      scrapedItems: scrapedDiversificado,
+      portalStats,
       usandoIA,
       guardado: guardadoInfo
     })
   } catch (error: unknown) {
-    console.error('Error parseando búsqueda:', error)
+    console.error('Error parseando bÃƒÂºsqueda:', error)
     const errorMessage = error instanceof Error ? error.message : 'Error al procesar el mensaje'
     return NextResponse.json(
       { error: errorMessage },
@@ -270,35 +466,36 @@ async function parsearBusquedaConIA(mensaje: string): Promise<BusquedaParseada> 
     apiKey: openaiApiKey,
   })
 
-  const systemPrompt = `Eres un asistente experto en análisis de mensajes de WhatsApp para búsquedas inmobiliarias en Santa Fe Capital, Argentina.
+  const systemPrompt = `Eres un asistente experto en anÃƒÂ¡lisis de mensajes de WhatsApp para bÃƒÂºsquedas inmobiliarias en Santa Fe Capital, Argentina.
 
-Analiza el mensaje y extrae la siguiente información en formato JSON:
+Analiza el mensaje y extrae la siguiente informaciÃƒÂ³n en formato JSON:
 {
   "tipoPropiedad": "CASA|DEPARTAMENTO|TERRENO|PH|LOCAL|OFICINA|OTRO",
   "operacion": "COMPRA|ALQUILER",
-  "presupuestoMax": número o null,
+  "presupuestoMin": nÃƒÂºmero o null,
+  "presupuestoMax": nÃƒÂºmero o null,
   "moneda": "USD|ARS",
   "zonas": ["array de zonas mencionadas"],
-  "dormitoriosMin": número o null,
-  "ambientesMin": número o null,
+  "dormitoriosMin": nÃƒÂºmero o null,
+  "ambientesMin": nÃƒÂºmero o null,
   "cochera": true|false,
-  "caracteristicas": ["array de características especiales"],
+  "caracteristicas": ["array de caracterÃƒÂ­sticas especiales"],
   "notas": "texto adicional relevante"
 }
 
-Zonas comunes en Santa Fe Capital: Candioti, Centro, Microcentro, Barrio Sur, Barrio Norte, Guadalupe, 7 Jefes, Bulevar, Constituyentes, Mayoraz, Maria Selva, Sargento Cabral, Las Flores, Roma, Fomento, Barranquitas, Los Hornos, Ciudadela, San Martín, Recoleta, Puerto, Costanera, Villa Setubal.
+Zonas comunes en Santa Fe Capital: Candioti, Centro, Microcentro, Barrio Sur, Barrio Norte, Guadalupe, 7 Jefes, Bulevar, Constituyentes, Mayoraz, Maria Selva, Sargento Cabral, Las Flores, Roma, Fomento, Barranquitas, Los Hornos, Ciudadela, San MartÃƒÂ­n, Recoleta, Puerto, Costanera, Villa Setubal.
 
 IMPORTANTE: 
-- SIEMPRE asume que la búsqueda es para Santa Fe Capital, Argentina
-- Si menciona "Santa Fe" sin más detalles, asume que es Santa Fe Capital
-- Si NO menciona ninguna zona específica, SIEMPRE usa ["Santa Fe Capital"] por defecto
-- Si menciona zonas de Buenos Aires (Palermo, Belgrano, Hilarion, Quintana, Villa Ballester, etc.), IGNÓRALAS completamente
+- SIEMPRE asume que la bÃƒÂºsqueda es para Santa Fe Capital, Argentina
+- Si menciona "Santa Fe" sin mÃƒÂ¡s detalles, asume que es Santa Fe Capital
+- Si NO menciona ninguna zona especÃƒÂ­fica, SIEMPRE usa ["Santa Fe Capital"] por defecto
+- Si menciona zonas de Buenos Aires (Palermo, Belgrano, Hilarion, Quintana, Villa Ballester, etc.), IGNÃƒâ€œRALAS completamente
 - Si menciona "habitaciones", "dormitorios", "ambientes" sin zona, asume Santa Fe Capital
-- Para presupuesto, extrae solo números (ej: "USD 150.000" -> 150000)
+- Para presupuesto, extrae solo nÃƒÂºmeros (ej: "USD 150.000" -> 150000)
 - NUNCA uses zonas de Buenos Aires, solo zonas de Santa Fe Capital
 - Responde SOLO con el JSON, sin texto adicional.`
 
-  const userPrompt = `Analiza este mensaje de WhatsApp y extrae la información de búsqueda inmobiliaria:\n\n"${mensaje}"`
+  const userPrompt = `Analiza este mensaje de WhatsApp y extrae la informaciÃƒÂ³n de bÃƒÂºsqueda inmobiliaria:\n\n"${mensaje}"`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -313,7 +510,7 @@ IMPORTANTE:
 
     const respuesta = completion.choices[0]?.message?.content
     if (!respuesta) {
-      throw new Error('No se recibió respuesta de la IA')
+      throw new Error('No se recibiÃƒÂ³ respuesta de la IA')
     }
 
     const parsed = JSON.parse(respuesta)
@@ -323,12 +520,10 @@ IMPORTANTE:
       telefono: null,
       tipoPropiedad: parsed.tipoPropiedad || 'OTRO',
       operacion: parsed.operacion || 'COMPRA',
-      presupuestoMin: null,
+      presupuestoMin: parsed.presupuestoMin || null,
       presupuestoMax: parsed.presupuestoMax || null,
       moneda: parsed.moneda || 'USD',
-      zonas: Array.isArray(parsed.zonas) && parsed.zonas.length > 0 
-        ? parsed.zonas 
-        : ['Santa Fe Capital'], // Si no hay zonas, usar Santa Fe Capital por defecto
+      zonas: normalizarZonasSantaFe(parsed.zonas),
       dormitoriosMin: parsed.dormitoriosMin || null,
       ambientesMin: parsed.ambientesMin || null,
       cochera: parsed.cochera || false,
@@ -348,7 +543,7 @@ IMPORTANTE:
 function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
   const msg = mensaje.toLowerCase()
   
-  // 1. Detectar Operación
+  // 1. Detectar OperaciÃƒÂ³n
   let operacion = 'COMPRA'
   if (msg.includes('alquilo') || msg.includes('alquilar') || msg.includes('alquiler') || msg.includes('renta')) {
     operacion = 'ALQUILER'
@@ -371,32 +566,51 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
     // Si dice "dolares" o "usd" es USD
     if (operacion === 'ALQUILER' && !msg.includes('usd') && !msg.includes('dolares')) moneda = 'ARS'
   }
-  if (msg.includes('us$') || msg.includes('u$d') || msg.includes('dólares') || msg.includes('dolares') || msg.includes('usd')) {
+  if (msg.includes('us$') || msg.includes('u$d') || msg.includes('dÃƒÂ³lares') || msg.includes('dolares') || msg.includes('usd')) {
     moneda = 'USD'
   }
 
   // 4. Detectar Presupuesto
+  let presupuestoMin: number | null = null
   let presupuestoMax: number | null = null
+  const rangoRegex = /(?:entre|de)\s*(?:u\$s|u\$d|usd|ars|\$)?\s*(\d+(?:[\.,]\d+)?)\s*(k|mil|m|millones)?\s*(?:y|a|-)\s*(?:u\$s|u\$d|usd|ars|\$)?\s*(\d+(?:[\.,]\d+)?)\s*(k|mil|m|millones)?/i
+  const matchRango = mensaje.match(rangoRegex)
+
+  const parseMonto = (raw: string, sufijo?: string) => {
+    let n = parseFloat(raw.replace(/\./g, '').replace(/,/g, '.'))
+    const s = (sufijo || '').toLowerCase()
+    if (s === 'k' || s === 'mil') n *= 1000
+    if (s === 'm' || s === 'millones') n *= 1000000
+    if (n < 1000 && n > 0 && operacion === 'COMPRA') n *= 1000
+    return n
+  }
+
+  if (matchRango) {
+    const a = parseMonto(matchRango[1], matchRango[2])
+    const b = parseMonto(matchRango[3], matchRango[4])
+    presupuestoMin = Math.min(a, b)
+    presupuestoMax = Math.max(a, b)
+  }
   // Regex mejorado: Busca "hasta X", "max X", "menos de X", "X o menos"
-  const precioRegex = /(?:hasta|max|máx|presupuesto|pago|gastaría|menos de|precio|valor)\s*(?:de)?\s*(?:u\$s|u\$d|\$|usd|ars)?\s*(\d+(?:[\.,]\d+)?)(?:\s*(?:k|mil|millones|m))?/i
+  const precioRegex = /(?:hasta|max|mÃƒÂ¡x|presupuesto|pago|gastarÃƒÂ­a|menos de|precio|valor)\s*(?:de)?\s*(?:u\$s|u\$d|\$|usd|ars)?\s*(\d+(?:[\.,]\d+)?)(?:\s*(?:k|mil|millones|m))?/i
   
-  // Intento 1: Expresión directa
+  // Intento 1: ExpresiÃƒÂ³n directa
   let matchPrecio = mensaje.match(precioRegex)
   
-  // Intento 2: Buscar numero suelto grande cerca de moneda si no halló nada
+  // Intento 2: Buscar numero suelto grande cerca de moneda si no hallÃƒÂ³ nada
   if (!matchPrecio) {
      const loosePriceRegex = /(?:u\$s|u\$d|usd)\s*(\d+(?:[\.,]\d+)?)(\s*k|\s*mil)?/i
      matchPrecio = mensaje.match(loosePriceRegex)
   }
 
-  if (matchPrecio) {
+  if (!presupuestoMax && matchPrecio) {
     let rawStr = matchPrecio[1].replace(/\./g, '').replace(/,/g, '.')
     let num = parseFloat(rawStr)
     
     // Multipliers
     const suffix = matchPrecio[0].toLowerCase()
     if (suffix.includes('k') || suffix.includes('mil ')) num *= 1000
-    if (suffix.includes('millón') || suffix.includes('millon') || suffix.includes('m')) num *= 1000000
+    if (suffix.includes('millÃƒÂ³n') || suffix.includes('millon') || suffix.includes('m')) num *= 1000000
     
     // Heuristic for "200.000" vs "200"
     if (rawStr.includes('.') && rawStr.split('.')[1].length === 3) {
@@ -410,31 +624,31 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
     presupuestoMax = num
   }
 
-  // 5. Detectar Dormitorios/Ambientes (MEJORADO para detectar "una habitación", "un dormitorio", etc.)
+  // 5. Detectar Dormitorios/Ambientes (MEJORADO para detectar "una habitaciÃƒÂ³n", "un dormitorio", etc.)
   let dormitoriosMin: number | null = null
   
-  // Mapeo de palabras a números
+  // Mapeo de palabras a nÃƒÂºmeros
   const numerosTexto: Record<string, number> = {
     'una': 1, 'un': 1, 'uno': 1,
     'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5,
     'seis': 6, 'siete': 7, 'ocho': 8, 'nueve': 9, 'diez': 10
   }
   
-  // Regex mejorado: busca números O palabras de número seguidos de dorm/habitaci/hab
-  // Ejemplos: "1 habitación", "una habitación", "con 2 dormitorios", "un dormitorio"
+  // Regex mejorado: busca nÃƒÂºmeros O palabras de nÃƒÂºmero seguidos de dorm/habitaci/hab
+  // Ejemplos: "1 habitaciÃƒÂ³n", "una habitaciÃƒÂ³n", "con 2 dormitorios", "un dormitorio"
   const dormRegex1 = /(\d+)\s*(?:dorm|habitaci|hab|cuartos|piezas)/i
   const matchDorm1 = mensaje.match(dormRegex1)
   if (matchDorm1) {
     dormitoriosMin = parseInt(matchDorm1[1])
   } else {
-    // Buscar palabras de número + habitación/dormitorio
+    // Buscar palabras de nÃƒÂºmero + habitaciÃƒÂ³n/dormitorio
     const dormRegex2 = /(?:con|de|tiene|tener)?\s*(una|un|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+(?:dorm|habitaci|hab|cuartos|piezas)/i
     const matchDorm2 = mensaje.match(dormRegex2)
     if (matchDorm2) {
       const palabraNumero = matchDorm2[1].toLowerCase()
       dormitoriosMin = numerosTexto[palabraNumero] || null
     } else {
-      // Buscar "habitación" o "dormitorio" después de "una/un"
+      // Buscar "habitaciÃƒÂ³n" o "dormitorio" despuÃƒÂ©s de "una/un"
       const dormRegex3 = /(?:con|de|tiene|tener)?\s*(una|un|uno)\s+(?:habitaci|dorm|hab|cuartos|piezas)/i
       const matchDorm3 = mensaje.match(dormRegex3)
       if (matchDorm3) {
@@ -443,7 +657,7 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
     }
   }
   
-  // También buscar por ambientes
+  // TambiÃƒÂ©n buscar por ambientes
   let ambientesMin: number | null = null
   const ambRegex1 = /(\d+)\s*(?:amb)/i
   const matchAmb1 = mensaje.match(ambRegex1)
@@ -495,7 +709,7 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
     'barranquitas': 'Barranquitas',
     'los hornos': 'Los Hornos',
     'ciudadela': 'Ciudadela',
-    'san martin': 'San Martín',
+    'san martin': 'San MartÃƒÂ­n',
     'recoleta': 'Recoleta',
     'puerto': 'Puerto',
     'costanera': 'Costanera',
@@ -512,33 +726,29 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
     }
   })
 
-  // IMPORTANTE: Si no se detectó ninguna zona, usar "Santa Fe Capital" por defecto
-  // Esto asegura que siempre busque en Santa Fe, no en Buenos Aires
-  if (zonasEncontradas.length === 0) {
-    zonasEncontradas.push('Santa Fe Capital')
-  }
+  const zonasFinales = normalizarZonasSantaFe(zonasEncontradas)
 
   // 8. Particularidades (A refaccionar)
   const caracteristicas: string[] = []
   if (msg.includes('refaccionar') || msg.includes('reciclar') || msg.includes('demoler')) caracteristicas.push('A Refaccionar')
   if (msg.includes('patio')) caracteristicas.push('Patio')
   if (msg.includes('pileta') || msg.includes('piscina')) caracteristicas.push('Pileta')
-  if (msg.includes('balcon') || msg.includes('balcón')) caracteristicas.push('Balcón')
+  if (msg.includes('balcon') || msg.includes('balcÃƒÂ³n')) caracteristicas.push('BalcÃƒÂ³n')
 
   return {
     nombreCliente: null, 
     telefono: null,
     tipoPropiedad,
     operacion,
-    presupuestoMin: null,
+    presupuestoMin,
     presupuestoMax,
     moneda,
-    zonas: zonasEncontradas,
+    zonas: zonasFinales,
     dormitoriosMin,
     ambientesMin,
     cochera,
     caracteristicas,
-    notas: `Procesado Localmente (Sin IA). Zonas detectadas: ${zonasEncontradas.join(', ')}. Presupuesto: ${presupuestoMax} ${moneda}`,
+    notas: `Procesado Localmente (Sin IA). Zonas detectadas: ${zonasFinales.join(', ')}. Presupuesto: ${presupuestoMax} ${moneda}`,
     confianza: 75
   }
 }
@@ -546,25 +756,31 @@ function parsearBusquedaLocal(mensaje: string): BusquedaParseada {
 // ----------------------------------------------------------------------
 // BUSCAR PROPIEDADES EN DB (MATCHING AUTOMATICO)
 // ----------------------------------------------------------------------
-// NOTA: Esta función busca en TODAS las inmobiliarias (Solar, Carli, etc.)
-// No filtra por inmobiliariaId para permitir búsqueda global
-async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
-  // Construir filtros de Prisma - BÚSQUEDA ESTRICTA (solo coincidencias reales)
-  // IMPORTANTE: No filtramos por inmobiliariaId para buscar en TODAS las inmobiliarias
+// Respeta permisos: inmobiliaria del usuario y, para agente, solo sus propiedades.
+async function encontrarMatchesEnDb(
+  criterios: BusquedaParseada,
+  currentUser: { id: string; rol: string; inmobiliariaId: string | null }
+) {
+  // Construir filtros de Prisma - BÃƒÅ¡SQUEDA ESTRICTA (solo coincidencias reales)
   const where: any = {
     estado: { in: ['APROBADA', 'BORRADOR', 'EN_ANALISIS'] },
-    // Buscar en todas las inmobiliarias (Solar, Carli, etc.)
-    // inmobiliariaId no se filtra aquí para permitir búsqueda global
   }
 
+  // Admin: ve su inmobiliaria. Superadmin y agente: bÃºsqueda global.
+  if (currentUser.rol === 'admin' && currentUser.inmobiliariaId) {
+    where.inmobiliariaId = currentUser.inmobiliariaId
+  }
+
+  // El agente puede buscar en toda la base para encontrar mejores opciones.
+
   // Validar que tengamos al menos un criterio importante para buscar
-  // Ahora siempre tenemos zonas (por defecto "Santa Fe Capital"), así que esto siempre será true
+  // Ahora siempre tenemos zonas (por defecto "Santa Fe Capital"), asÃƒÂ­ que esto siempre serÃƒÂ¡ true
   const tieneCriterios = criterios.tipoPropiedad || criterios.presupuestoMax || criterios.zonas.length > 0 || criterios.dormitoriosMin
   
   if (!tieneCriterios) {
-    // Si no hay criterios específicos, buscar todas las propiedades aprobadas
+    // Si no hay criterios especÃƒÂ­ficos, buscar todas las propiedades aprobadas
     const todas = await prisma.propiedad.findMany({
-      where: { estado: { in: ['APROBADA', 'BORRADOR', 'EN_ANALISIS'] } },
+      where,
       take: 10,
       orderBy: { precio: 'asc' },
       include: {
@@ -581,16 +797,16 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     return todas
   }
 
-  // Construir condiciones - BÚSQUEDA MÁS ESTRICTA (debe cumplir criterios relevantes)
+  // Construir condiciones - BÃƒÅ¡SQUEDA MÃƒÂS ESTRICTA (debe cumplir criterios relevantes)
   const condicionesAND: any[] = []
   const condicionesOR: any[] = []
 
-  // Filtrar propiedades con precio válido (mayor a 0)
+  // Filtrar propiedades con precio vÃƒÂ¡lido (mayor a 0)
   condicionesAND.push({
     precio: { gt: 0 }
   })
 
-  // 1. Tipo de Propiedad (OBLIGATORIO si está especificado y no es OTRO)
+  // 1. Tipo de Propiedad (OBLIGATORIO si estÃƒÂ¡ especificado y no es OTRO)
   if (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') {
     condicionesAND.push({
       OR: [
@@ -602,9 +818,9 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     })
   }
 
-  // 2. Presupuesto (OBLIGATORIO si está especificado - margen razonable)
+  // 2. Presupuesto (OBLIGATORIO si estÃƒÂ¡ especificado - margen razonable)
   if (criterios.presupuestoMax) {
-    // Margen más razonable: desde 70% hasta 130% del presupuesto
+    // Margen mÃƒÂ¡s razonable: desde 70% hasta 130% del presupuesto
     const minPrecio = Math.floor(criterios.presupuestoMax * 0.7)
     const maxPrecio = Math.ceil(criterios.presupuestoMax * 1.3)
     
@@ -617,19 +833,19 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     })
   }
 
-  // 3. Zonas (FLEXIBLE - busca si hay otros criterios o si es zona específica)
+  // 3. Zonas (FLEXIBLE - busca si hay otros criterios o si es zona especÃƒÂ­fica)
   const tieneCriteriosEspecificos = (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') || 
                                      criterios.presupuestoMax || 
                                      criterios.dormitoriosMin
   
   if (criterios.zonas.length > 0) {
     // Si solo tiene "Santa Fe Capital" por defecto SIN otros criterios, no buscar
-    // Pero si tiene otros criterios (tipo, precio, dormitorios), SÍ buscar
+    // Pero si tiene otros criterios (tipo, precio, dormitorios), SÃƒÂ buscar
     const esSoloSantaFeDefault = criterios.zonas.length === 1 && 
                                   criterios.zonas[0].toLowerCase().includes('santa fe capital')
     
     if (!esSoloSantaFeDefault || tieneCriteriosEspecificos) {
-      // Buscar por zonas específicas (más flexible)
+      // Buscar por zonas especÃƒÂ­ficas (mÃƒÂ¡s flexible)
       const zonaConditions = criterios.zonas.flatMap(z => {
         const condiciones: any[] = [
           { ubicacion: { contains: z, mode: 'insensitive' } },
@@ -638,7 +854,7 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
           { titulo: { contains: z, mode: 'insensitive' } }
         ]
         
-        // Si es "Santa Fe Capital", también buscar por "santa fe" solo
+        // Si es "Santa Fe Capital", tambiÃƒÂ©n buscar por "santa fe" solo
         if (z.toLowerCase().includes('santa fe capital')) {
           condiciones.push(
             { ubicacion: { contains: 'santa fe', mode: 'insensitive' } },
@@ -654,7 +870,7 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     }
   }
 
-  // 4. Dormitorios (OBLIGATORIO si está especificado - permite 1 menos)
+  // 4. Dormitorios (OBLIGATORIO si estÃƒÂ¡ especificado - permite 1 menos)
   if (criterios.dormitoriosMin) {
     condicionesAND.push({
       OR: [
@@ -665,8 +881,8 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     })
   }
 
-  // Si no hay criterios específicos, no buscar (evitar mostrar todas las propiedades)
-  // Pero si tiene tipo + dormitorios o tipo + zona, SÍ buscar
+  // Si no hay criterios especÃƒÂ­ficos, no buscar (evitar mostrar todas las propiedades)
+  // Pero si tiene tipo + dormitorios o tipo + zona, SÃƒÂ buscar
   const tieneCriteriosRelevantes = (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') ||
                                     criterios.presupuestoMax ||
                                     criterios.dormitoriosMin ||
@@ -682,11 +898,11 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     where.AND = condicionesAND
   }
 
-  // Si no hay ningún criterio específico, buscar todas las propiedades aprobadas
+  // Si no hay ningÃƒÂºn criterio especÃƒÂ­fico, buscar todas las propiedades aprobadas
   if (!where.OR && !where.AND) {
-    // Buscar propiedades sin filtros específicos (solo por estado)
+    // Buscar propiedades sin filtros especÃƒÂ­ficos (solo por estado)
     const todas = await prisma.propiedad.findMany({
-      where: { estado: { in: ['APROBADA', 'BORRADOR', 'EN_ANALISIS'] } },
+      where,
       take: 10,
       orderBy: { precio: 'asc' },
       include: {
@@ -706,7 +922,7 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
   // Buscar propiedades que cumplan TODOS los criterios
   const propiedades = await prisma.propiedad.findMany({
     where,
-    take: 20, // Buscar más para luego filtrar mejor
+    take: 20, // Buscar mÃƒÂ¡s para luego filtrar mejor
     orderBy: { precio: 'asc' },
     include: {
       inmobiliaria: {
@@ -720,9 +936,9 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
     }
   })
 
-  // Validación ESTRICTA: solo propiedades que realmente coinciden
+  // ValidaciÃƒÂ³n ESTRICTA: solo propiedades que realmente coinciden
   const propiedadesValidadas = propiedades.filter(prop => {
-    // 1. Validar precio (OBLIGATORIO si está especificado)
+    // 1. Validar precio (OBLIGATORIO si estÃƒÂ¡ especificado)
     if (criterios.presupuestoMax && prop.precio) {
       const minPrecio = Math.floor(criterios.presupuestoMax * 0.7)
       const maxPrecio = Math.ceil(criterios.presupuestoMax * 1.3)
@@ -730,14 +946,14 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
       if (prop.moneda !== criterios.moneda) return false
     }
 
-    // 2. Validar tipo (OBLIGATORIO si está especificado y no es OTRO)
+    // 2. Validar tipo (OBLIGATORIO si estÃƒÂ¡ especificado y no es OTRO)
     if (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') {
       const textoCompleto = `${prop.tipo} ${prop.titulo} ${prop.subtipo || ''}`.toLowerCase()
       const tipoLower = criterios.tipoPropiedad.toLowerCase()
       if (!textoCompleto.includes(tipoLower)) return false
     }
 
-    // 3. Validar dormitorios (OBLIGATORIO si está especificado)
+    // 3. Validar dormitorios (OBLIGATORIO si estÃƒÂ¡ especificado)
     if (criterios.dormitoriosMin) {
       const dorms = prop.dormitorios || 0
       const ambientes = prop.ambientes || 0
@@ -747,22 +963,22 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
       if (!dormOk) return false
     }
 
-    // 4. Validar zona (FLEXIBLE - solo rechazar si es explícitamente de otra ciudad)
+    // 4. Validar zona (FLEXIBLE - solo rechazar si es explÃƒÂ­citamente de otra ciudad)
     if (criterios.zonas.length > 0) {
       const textoCompleto = `${prop.ubicacion} ${prop.zona || ''} ${prop.localidad || ''} ${prop.direccion || ''} ${prop.titulo || ''}`.toLowerCase()
       
-      // Blacklist: rechazar SIEMPRE si menciona explícitamente otras ciudades
+      // Blacklist: rechazar SIEMPRE si menciona explÃƒÂ­citamente otras ciudades
       const ciudadesProhibidas = ['buenos aires', 'capital federal', 'caba', 'rosario', 'cordoba', 'mendoza']
       const tieneCiudadProhibida = ciudadesProhibidas.some(ciudad => textoCompleto.includes(ciudad))
       if (tieneCiudadProhibida) return false
       
-      // Si tiene otros criterios específicos (tipo, dormitorios), ser más flexible con la zona
+      // Si tiene otros criterios especÃƒÂ­ficos (tipo, dormitorios), ser mÃƒÂ¡s flexible con la zona
       const tieneCriteriosEspecificos = (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') || 
                                          criterios.presupuestoMax || 
                                          criterios.dormitoriosMin
       
-      // Si tiene criterios específicos, aceptar si NO tiene ciudad prohibida (asumimos Santa Fe)
-      // Si no tiene criterios específicos, validar que tenga zona de Santa Fe
+      // Si tiene criterios especÃƒÂ­ficos, aceptar si NO tiene ciudad prohibida (asumimos Santa Fe)
+      // Si no tiene criterios especÃƒÂ­ficos, validar que tenga zona de Santa Fe
       if (!tieneCriteriosEspecificos) {
         const tieneZona = criterios.zonas.some(z => {
           const zonaLower = z.toLowerCase()
@@ -772,14 +988,81 @@ async function encontrarMatchesEnDb(criterios: BusquedaParseada) {
         })
         if (!tieneZona) return false
       }
-      // Si tiene criterios específicos, solo validamos que NO tenga ciudad prohibida (ya hecho arriba)
+      // Si tiene criterios especÃƒÂ­ficos, solo validamos que NO tenga ciudad prohibida (ya hecho arriba)
     }
 
     return true
   })
 
-  // Limitar resultados a máximo 8 para mostrar resultados relevantes
-  return propiedadesValidadas.slice(0, 8)
+  // Limitar resultados a mÃƒÂ¡ximo 15 para mostrar mÃƒÂ¡s opciones
+  return propiedadesValidadas.slice(0, 15)
+}
+
+function esItemDeSantaFe(item: { titulo?: string; ubicacion?: string; url?: string }): boolean {
+  const texto = `${item?.titulo || ''} ${item?.ubicacion || ''} ${item?.url || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  const blacklist = [
+    'buenos aires',
+    'capital federal',
+    'caba',
+    'palermo',
+    'belgrano',
+    'olivos',
+    'martinez',
+    'pilar',
+    'escobar',
+    'rosario',
+    'cordoba',
+    'mendoza',
+  ]
+
+  if (blacklist.some((b) => texto.includes(b))) return false
+
+  const whitelist = [
+    'santa fe',
+    'santa-fe',
+    'santa fe capital',
+    'candioti',
+    '7 jefes',
+    'guadalupe',
+    'bulevar',
+    'constituyentes',
+    'costanera',
+    'santo tome',
+    'sauce viejo',
+    'arroyo leyes',
+    'recreo',
+    'colastine',
+    'rincon',
+  ]
+
+  if (whitelist.some((w) => texto.includes(w))) return true
+
+  // Aceptar solo si no hay ubicacion clara pero la URL esta forzada a Santa Fe
+  if (texto.includes('ciudad-de-santa-fe') || texto.includes('/santa-fe-') || texto.includes(', santa fe')) {
+    return true
+  }
+
+  return false
+}
+
+function diversificarPorPortal(items: any[], maxTotal = 8, maxPorPortal = 1) {
+  const porPortal = new Map<string, any[]>()
+  for (const item of items) {
+    const key = String(item?.sitio || 'Portal')
+    if (!porPortal.has(key)) porPortal.set(key, [])
+    porPortal.get(key)!.push(item)
+  }
+
+  const resultado: any[] = []
+  for (const [, lista] of porPortal) {
+    resultado.push(...lista.slice(0, maxPorPortal))
+    if (resultado.length >= maxTotal) break
+  }
+  return resultado.slice(0, maxTotal)
 }
 
 // ----------------------------------------------------------------------
@@ -794,147 +1077,58 @@ function generarLinksExternos(criterios: BusquedaParseada) {
       categoria: 'PORTALES' | 'INMOBILIARIAS' | 'INTERNACIONALES'
   }
 
-  const links: ExternLink[] = []
-  
-  // Normalizar datos para URLs
-  const zonas = criterios.zonas.length > 0 ? criterios.zonas : ['Santa Fe']
   const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
-  const tipo = criterios.tipoPropiedad.toLowerCase() // casa, departamento, terreno
-  
-  // Helpers
-  const slugify = (text: string) => text.toLowerCase().trim().replace(/\s+/g, '-')
-  const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+  const tipo = criterios.tipoPropiedad.toLowerCase()
+  const zona = 'santa fe capital'
+  const dormMin = criterios.dormitoriosMin || criterios.ambientesMin || null
+  const terminosBusqueda = `${tipo} ${operacion} ${zona} ${dormMin ? `${dormMin} dormitorios` : ''} ${criterios.presupuestoMin ? `desde ${criterios.presupuestoMin}` : ''} ${criterios.presupuestoMax ? `hasta ${criterios.presupuestoMax}` : ''}`.trim()
 
-  zonas.forEach(zona => {
-    const terminosBusqueda = `${tipo} ${operacion} ${zona} ${criterios.dormitoriosMin ? criterios.dormitoriosMin + ' dormitorios' : ''}`
-    
-    // ------------------------------------------------------------------
-    // 1. PORTALES PRINCIPALES
-    // ------------------------------------------------------------------
-    
-    // ZonaProp
-    // Forzamos "ciudad-de-santa-fe-sf" para evitar conflictos
-    let zpTipo = tipo === 'departamento' ? 'departamentos' : (tipo === 'casa' ? 'casas' : 'inmuebles')
-    let zpUrl = `https://www.zonaprop.com.ar/${zpTipo}-${operacion}-ciudad-de-santa-fe-sf`
-    if (criterios.dormitoriosMin) zpUrl += `-${criterios.dormitoriosMin}-habitaciones`
-    links.push({
+  const links: ExternLink[] = [
+    {
       sitio: 'ZonaProp',
-      titulo: `ZonaProp: ${capital(tipo)} en ${zona}`,
-      url: `${zpUrl}.html`,
-      icon: '🏢',
+      titulo: 'ZonaProp: busqueda filtrada',
+      url: buildZonaPropUrl(criterios),
+      icon: 'ZP',
       categoria: 'PORTALES'
-    })
-
-    // ArgenProp
-    // EVITAR "santa-fe" porque matchea con Av Santa Fe en CABA
-    // Usar "santa-fe-santa-fe" o "santa-fe-capital"
-    let apTipo = tipo === 'departamento' ? 'departamentos' : (tipo === 'casa' ? 'casas' : (tipo === 'terreno' ? 'terrenos' : 'inmuebles'))
-    let apUrl = `https://www.argenprop.com/${apTipo}/${operacion}/santa-fe-santa-fe`
-    links.push({
+    },
+    {
       sitio: 'ArgenProp',
-      titulo: `ArgenProp: ${capital(tipo)} en Santa Fe`,
-      url: apUrl,
-      icon: '🏠',
+      titulo: 'ArgenProp: busqueda filtrada',
+      url: buildArgenPropUrl(criterios),
+      icon: 'AP',
       categoria: 'PORTALES'
-    })
-
-    // MercadoLibre
-    // Explicitamente "santa-fe/santa-fe-capital"
-    const mlOperacion = operacion === 'venta' ? 'venta' : 'alquiler'
-    const mlTipo = tipo === 'departamento' ? 'departamentos' : (tipo === 'casa' ? 'casas' : 'inmuebles')
-    let mlUrl = `https://inmuebles.mercadolibre.com.ar/${mlTipo}/${mlOperacion}/santa-fe/santa-fe-capital`
-    links.push({
-       sitio: 'MercadoLibre',
-       titulo: `MercadoLibre: ${capital(tipo)}`,
-       url: mlUrl,
-       icon: '🤝',
-       categoria: 'PORTALES'
-    })
-    
-    // Buscainmueble (Agregador)
-    links.push({
-        sitio: 'Buscainmueble',
-        titulo: 'Buscainmueble: Agregador',
-        url: `https://www.buscainmueble.com/propiedades/${tipo}s-en-${operacion}-en-santa-fe-santa-fe`,
-        icon: '🔎',
-        categoria: 'PORTALES'
-    })
-
-    // ------------------------------------------------------------------
-    // 2. INMOBILIARIAS Y REDES
-    // ------------------------------------------------------------------
-
-    // Remax
-    // Address estricto "Santa Fe, Santa Fe"
-    const rxOp = operacion === 'venta' ? 'venta' : 'alquiler'
-    links.push({
-        sitio: 'Remax',
-        titulo: 'Red Remax',
-        url: `https://www.remax.com.ar/propiedades/en-${rxOp}?address=Santa+Fe%2C+Santa+Fe`,
-        icon: '🎈',
-        categoria: 'INMOBILIARIAS'
-    })
-
-    // Century 21
-    // Ubicacion "Santa Fe Capital" para evitar Buenos Aires
-    const c21Op = operacion === 'venta' ? 'Venta' : 'Alquiler'
-    const c21Tipo = tipo === 'casa' ? 'Casa' : (tipo === 'departamento' ? 'Departamento' : 'Propiedad')
-    links.push({
-        sitio: 'Century 21',
-        titulo: 'Century 21 Global',
-        url: `https://www.century21.com.ar/propiedades?operacion=${c21Op}&tipo_propiedad=${c21Tipo}&ubicacion=Santa+Fe+Capital`,
-        icon: '🏠',
-        categoria: 'INMOBILIARIAS'
-    })
-
-    // ------------------------------------------------------------------
-    // 3. PORTALES INTERNACIONALES / OTROS
-    // ------------------------------------------------------------------
-
-    // Properstar
-    // https://www.properstar.com.ar/argentina/santa-fe-province/santa-fe/casa-venta
-    links.push({
-        sitio: 'Properstar',
-        titulo: 'Properstar (Internacional)',
-        url: `https://www.properstar.com.ar/argentina/santa-fe-province/santa-fe/${slugify(tipo)}-${operacion}`,
-        icon: '⭐',
-        categoria: 'INTERNACIONALES'
-    })
-
-    // FazWaz
-    // https://www.fazwaz.com.ar/en-venta/argentina/santa-fe/santa-fe
-    links.push({
-        sitio: 'FazWaz',
-        titulo: 'FazWaz Invest',
-        url: `https://www.fazwaz.com.ar/en-${operacion}/argentina/santa-fe/santa-fe`,
-        icon: '📈',
-        categoria: 'INTERNACIONALES'
-    })
-
-    // Rentberry (Solo Alquileres, si aplica)
-    if (operacion === 'alquiler') {
-        links.push({
-            sitio: 'Rentberry',
-            titulo: 'Rentberry (Global Rentals)',
-            url: `https://rentberry.com/ar/apartments/s/santa-fe-argentina`,
-            icon: '🍇',
-            categoria: 'INTERNACIONALES'
-        })
+    },
+    {
+      sitio: 'Remax',
+      titulo: 'Remax: Santa Fe Capital',
+      url: buildRemaxUrl(criterios),
+      icon: 'RX',
+      categoria: 'INMOBILIARIAS'
+    },
+    {
+      sitio: 'MercadoLibre',
+      titulo: 'MercadoLibre (busqueda web)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:inmuebles.mercadolibre.com.ar ${terminosBusqueda}`)}`,
+      icon: 'ML',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Buscainmueble',
+      titulo: 'Buscainmueble (busqueda web)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:buscainmueble.com ${terminosBusqueda}`)}`,
+      icon: 'BI',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Google',
+      titulo: `Google: ${terminosBusqueda}`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(terminosBusqueda + ' inmobiliaria santa fe')}`,
+      icon: 'GO',
+      categoria: 'PORTALES'
     }
+  ]
 
-    // Google Search (Genérico)
-    links.push({
-        sitio: 'Google',
-        titulo: `Google: ${terminosBusqueda}`,
-        url: `https://www.google.com/search?q=${encodeURIComponent(terminosBusqueda + ' inmobiliaria santa fe')}`,
-        icon: '🔍',
-        categoria: 'PORTALES'
-    })
-  })
-
-  // Eliminar duplicados de URL (manteniendo el último por si es más específico)
-  const uniqueLinks = Array.from(new Map(links.map(item => [item.url, item])).values())
-  return uniqueLinks
+  return links
 }
 
 // ----------------------------------------------------------------------
@@ -949,16 +1143,16 @@ function validarItemContraCriterios(
   const tituloLower = titulo.toLowerCase().trim()
   const precioLower = precio.toLowerCase().trim()
   
-  // 1. Rechazar elementos de UI (más estricto)
-  // Si el título es muy corto o contiene palabras clave de UI, rechazar
+  // 1. Rechazar elementos de UI (mÃƒÂ¡s estricto)
+  // Si el tÃƒÂ­tulo es muy corto o contiene palabras clave de UI, rechazar
   if (tituloLower.length < 10) {
-    return { valido: false, razon: 'título muy corto (posible elemento UI)' }
+    return { valido: false, razon: 'tÃƒÂ­tulo muy corto (posible elemento UI)' }
   }
   
   const palabrasUI = [
     'buscar solo', 'filtrar', 'moneda:', 'limpiar', 'aplicar',
-    'argentina', 'uruguay', 'paraguay', 'brasil', 'emiratos', 'españa',
-    'estados unidos', 'seleccionar', 'opciones', 'país', 'países'
+    'argentina', 'uruguay', 'paraguay', 'brasil', 'emiratos', 'espaÃƒÂ±a',
+    'estados unidos', 'seleccionar', 'opciones', 'paÃƒÂ­s', 'paÃƒÂ­ses'
   ]
   
   if (palabrasUI.some(palabra => tituloLower.includes(palabra))) {
@@ -969,10 +1163,14 @@ function validarItemContraCriterios(
   if (precioLower.includes('expensas') && !tituloLower.includes('departamento') && !tituloLower.includes('casa')) {
     return { valido: false, razon: 'precio con texto de UI' }
   }
+
+  if (precioLower.includes('consultar')) {
+    return { valido: false, razon: 'precio no informado' }
+  }
   
-  // Si la ubicación es muy genérica o parece ser un selector
+  // Si la ubicaciÃƒÂ³n es muy genÃƒÂ©rica o parece ser un selector
   if (tituloLower.match(/^\([0-9]+\)$/)) {
-    return { valido: false, razon: 'ubicación genérica (selector UI)' }
+    return { valido: false, razon: 'ubicaciÃƒÂ³n genÃƒÂ©rica (selector UI)' }
   }
   
   // 2. Filtrar por tipo de propiedad
@@ -992,14 +1190,14 @@ function validarItemContraCriterios(
     }
   }
   
-  // 3. Filtrar por operación
+  // 3. Filtrar por operaciÃƒÂ³n
   if (criterios.operacion === 'COMPRA') {
     if (tituloLower.includes('alquiler') || precioLower.includes('alquiler') || precioLower.includes('alq')) {
-      return { valido: false, razon: 'operación no coincide (alquiler vs compra)' }
+      return { valido: false, razon: 'operaciÃƒÂ³n no coincide (alquiler vs compra)' }
     }
   } else if (criterios.operacion === 'ALQUILER') {
     if (tituloLower.includes('venta') || tituloLower.includes('vende') || precioLower.includes('venta')) {
-      return { valido: false, razon: 'operación no coincide (venta vs alquiler)' }
+      return { valido: false, razon: 'operaciÃƒÂ³n no coincide (venta vs alquiler)' }
     }
   }
   
@@ -1018,7 +1216,10 @@ function validarItemContraCriterios(
       const precioEsARS = precioLower.includes('$') && !precioEsUSD && !precioLower.includes('us')
       
       if ((criterios.moneda === 'USD' && precioEsUSD) || (criterios.moneda === 'ARS' && precioEsARS)) {
-        if (precioFinal > criterios.presupuestoMax * 1.1) { // Permitir 10% de margen
+        if (criterios.presupuestoMin && precioFinal < criterios.presupuestoMin) {
+          return { valido: false, razon: `precio por debajo del minimo (${precioFinal} < ${criterios.presupuestoMin})` }
+        }
+        if (precioFinal > criterios.presupuestoMax * 1.08) {
           return { valido: false, razon: `precio excede presupuesto (${precioFinal} > ${criterios.presupuestoMax})` }
         }
       }
@@ -1033,7 +1234,7 @@ function validarItemContraCriterios(
 // ----------------------------------------------------------------------
 async function scrapearMercadoLibre(criterios: BusquedaParseada) {
   try {
-     // Configuración
+     // ConfiguraciÃƒÂ³n
     const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
     let tipo = 'inmuebles'
     if (criterios.tipoPropiedad === 'CASA') tipo = 'casas'
@@ -1064,11 +1265,13 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     let lastUrl = ''
     
     for (const url of urlsToTry) {
-      if (criterios.dormitoriosMin) {
-        lastUrl = url + `?DORMITORIOS=${criterios.dormitoriosMin}`
-      } else {
-        lastUrl = url
-      }
+      const dormMin = getDormitoriosFiltro(criterios)
+      const params = new URLSearchParams()
+      if (dormMin) params.set('DORMITORIOS', String(dormMin))
+      if (criterios.presupuestoMax) params.set('precio_hasta', String(criterios.presupuestoMax))
+      if (criterios.presupuestoMin) params.set('precio_desde', String(criterios.presupuestoMin))
+      const query = params.toString()
+      lastUrl = query ? `${url}?${query}` : url
 
       console.log(`Intentando scraping MercadoLibre: ${lastUrl}`)
       const response = await fetchWithTimeout(lastUrl, {
@@ -1077,11 +1280,11 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
 
       if (response.ok) {
         const text = await response.text()
-        if (text && text.length > 1000 && !text.toLowerCase().includes('robot') && !text.toLowerCase().includes('atención')) {
+        if (text && text.length > 1000 && !text.toLowerCase().includes('robot') && !text.toLowerCase().includes('atenciÃƒÂ³n')) {
           html = text
-          break // Éxito, salir del bucle
+          break // Ãƒâ€°xito, salir del bucle
         } else {
-          console.warn(`MercadoLibre: URL bloqueada o inválida, intentando siguiente... URL: ${lastUrl}`)
+          console.warn(`MercadoLibre: URL bloqueada o invÃƒÂ¡lida, intentando siguiente... URL: ${lastUrl}`)
         }
       }
     }
@@ -1094,16 +1297,16 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     const $ = cheerio.load(html)
     const items: any[] = []
 
-    // SOPORTE PARA MÚLTIPLES DISEÑOS DE ML (Lista vs Grilla/Poly vs otros)
-    // Intentar múltiples selectores para asegurar que encontramos resultados
+    // SOPORTE PARA MÃƒÅ¡LTIPLES DISEÃƒâ€˜OS DE ML (Lista vs Grilla/Poly vs otros)
+    // Intentar mÃƒÂºltiples selectores para asegurar que encontramos resultados
     let elements = $('.ui-search-layout__item, .poly-card, .ui-search-result, [data-testid="item"], .results-item')
     
-    // Si no encontramos elementos, intentar selectores más genéricos
+    // Si no encontramos elementos, intentar selectores mÃƒÂ¡s genÃƒÂ©ricos
     if (elements.length === 0) {
       elements = $('article, .item, [class*="item"], [class*="card"], [class*="result"]')
-      console.log(`MercadoLibre: Usando selectores genéricos, encontrados: ${elements.length}`)
+      console.log(`MercadoLibre: Usando selectores genÃƒÂ©ricos, encontrados: ${elements.length}`)
     } else {
-      console.log(`MercadoLibre: Encontrados ${elements.length} elementos con selectores específicos`)
+      console.log(`MercadoLibre: Encontrados ${elements.length} elementos con selectores especÃƒÂ­ficos`)
     }
     
     // Whitelist: Solo zonas de Santa Fe Capital y alrededores permitidas
@@ -1123,12 +1326,12 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     const blackList = [
       // Buenos Aires / CABA
       'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-      'palermo', 'belgrano', 'recoleta', 'las cañitas', 'las canitas', 'cañitas',
+      'palermo', 'belgrano', 'recoleta', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
       'nunez', 'saavedra', 'villa urquiza', 'colegiales', 'caballito', 'almagro',
       'villa crespo', 'flores', 'floresta', 'barracas', 'la boca',
       'san telmo', 'montserrat', 'puerto madero', 'retiro', 'san nicolas',
       'microcentro buenos aires', 'microcentro caba',
-      // Calles y zonas específicas de Buenos Aires
+      // Calles y zonas especÃƒÂ­ficas de Buenos Aires
       'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
       'cid campeador', 'campeador',
       'san martin buenos aires', 'san martin gba',
@@ -1145,13 +1348,13 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     ]
 
     elements.each((i, el) => {
-      if (items.length >= 10) return // Aumentar a 10 resultados por portal
+      if (items.length >= 20) return // Aumentar a 20 resultados por portal
 
-      // Selectores Híbridos (intenta uno, si no, el otro)
+      // Selectores HÃƒÂ­bridos (intenta uno, si no, el otro)
       const titulo = $(el).find('.ui-search-item__title, .poly-component__title, h2, h3, [class*="title"]').first().text().trim()
-      // Selectores expandidos para precio (MercadoLibre tiene múltiples variantes)
+      // Selectores expandidos para precio (MercadoLibre tiene mÃƒÂºltiples variantes)
       let precio = $(el).find('.ui-search-price__part, .poly-price__current-price, .ui-search-price, [class*="price"]').first().text().trim()
-      // Si no encontramos precio con los selectores principales, intentar más genéricos
+      // Si no encontramos precio con los selectores principales, intentar mÃƒÂ¡s genÃƒÂ©ricos
       if (!precio) {
         precio = $(el).find('[class*="price"], [data-price], .price, span:contains("$")').first().text().trim()
       }
@@ -1165,7 +1368,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
       const tituloLower = titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       
       // PRIMERO: Verificar si es CLARAMENTE de Santa Fe (antes de aplicar blacklist)
-      // Si tiene "Santa Fe Capital" o "Santa Fe" explícitamente, es válida
+      // Si tiene "Santa Fe Capital" o "Santa Fe" explÃƒÂ­citamente, es vÃƒÂ¡lida
       const esClaramenteSantaFe = ubicacionLower.includes('santa fe capital') || 
                                    ubicacionLower.includes('santafe capital') ||
                                    tituloLower.includes('santa fe capital') ||
@@ -1173,11 +1376,11 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
                                    ubicacionLower.includes(', santa fe') ||
                                    tituloLower.includes(', santa fe')
       
-      // Validar URL primero (más confiable)
+      // Validar URL primero (mÃƒÂ¡s confiable)
       let urlValida = false
       if (urlItem) {
           const urlLower = urlItem.toLowerCase()
-          // Si la URL menciona santa-fe, es válida
+          // Si la URL menciona santa-fe, es vÃƒÂ¡lida
           if (urlLower.includes('santa-fe') || urlLower.includes('santafe')) {
               urlValida = true
           }
@@ -1188,12 +1391,12 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
           }
       }
       
-      // 1. VALIDACIÓN POSITIVA: Debe contener alguna zona de Santa Fe (en título/ubicación O en URL)
+      // 1. VALIDACIÃƒâ€œN POSITIVA: Debe contener alguna zona de Santa Fe (en tÃƒÂ­tulo/ubicaciÃƒÂ³n O en URL)
       const tieneZonaSantaFe = santaFeZonas.some(zona => 
         ubicacionLower.includes(zona.toLowerCase()) || tituloLower.includes(zona.toLowerCase())
       )
       
-      // 2. VALIDACIÓN NEGATIVA: Blacklist ESTRICTA (incluye URL también)
+      // 2. VALIDACIÃƒâ€œN NEGATIVA: Blacklist ESTRICTA (incluye URL tambiÃƒÂ©n)
       // PERO: NO aplicar blacklist si es claramente de Santa Fe
       let tieneProhibido = false
       if (!esClaramenteSantaFe) {
@@ -1212,19 +1415,19 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
         return
       }
       
-      // 4. FILTRO INTELIGENTE: Como la URL de búsqueda SIEMPRE apunta a Santa Fe, ser más permisivo
-      // Si la URL del item menciona santa-fe → aceptar
-      // Si tiene zona de Santa Fe explícita → aceptar
-      // Si NO tiene palabras prohibidas → aceptar (confiar en que el portal devolvió resultados de Santa Fe)
-      // Solo rechazar si tiene palabras prohibidas explícitas (ya validado arriba)
+      // 4. FILTRO INTELIGENTE: Como la URL de bÃƒÂºsqueda SIEMPRE apunta a Santa Fe, ser mÃƒÂ¡s permisivo
+      // Si la URL del item menciona santa-fe Ã¢â€ â€™ aceptar
+      // Si tiene zona de Santa Fe explÃƒÂ­cita Ã¢â€ â€™ aceptar
+      // Si NO tiene palabras prohibidas Ã¢â€ â€™ aceptar (confiar en que el portal devolviÃƒÂ³ resultados de Santa Fe)
+      // Solo rechazar si tiene palabras prohibidas explÃƒÂ­citas (ya validado arriba)
       if (urlValida) {
-        // URL del item válida (menciona santa-fe), aceptar
+        // URL del item vÃƒÂ¡lida (menciona santa-fe), aceptar
       } else if (tieneZonaSantaFe) {
-        // Tiene zona de Santa Fe explícita, aceptar
+        // Tiene zona de Santa Fe explÃƒÂ­cita, aceptar
       } else {
-        // Como la búsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas → aceptar
-        // Confiamos en que el portal devolvió resultados de Santa Fe
-        // No rechazar si no tiene indicadores explícitos, confiar en la URL de búsqueda
+        // Como la bÃƒÂºsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas Ã¢â€ â€™ aceptar
+        // Confiamos en que el portal devolviÃƒÂ³ resultados de Santa Fe
+        // No rechazar si no tiene indicadores explÃƒÂ­citos, confiar en la URL de bÃƒÂºsqueda
       }
 
       // Imagen (Lazy Load a veces usa data-src)
@@ -1232,7 +1435,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
                 $(el).find('img.ui-search-result-image__element, img.poly-component__picture').first().attr('src')
 
       if (titulo && urlItem && precio) {
-        // Validar que el item cumple con los criterios de búsqueda
+        // Validar que el item cumple con los criterios de bÃƒÂºsqueda
         const validacion = validarItemContraCriterios(titulo, precio, criterios, 'MercadoLibre')
         if (!validacion.valido) {
           console.log(`MercadoLibre: Rechazado - ${validacion.razon}: ${titulo.substring(0, 50)}`)
@@ -1249,7 +1452,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
         })
         console.log(`MercadoLibre: Agregado item ${items.length}: ${titulo.substring(0, 50)}`)
       } else {
-        console.log(`MercadoLibre: Item rechazado - titulo: ${titulo ? 'Sí' : 'No'}, precio: ${precio ? 'Sí' : 'No'}, url: ${urlItem ? 'Sí' : 'No'}`)
+        console.log(`MercadoLibre: Item rechazado - titulo: ${titulo ? 'SÃƒÂ­' : 'No'}, precio: ${precio ? 'SÃƒÂ­' : 'No'}, url: ${urlItem ? 'SÃƒÂ­' : 'No'}`)
       }
     })
 
@@ -1275,7 +1478,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terreno'
     
     // Zona
-    // Lógica "Fina": Forzar Santa Fe
+    // LÃƒÂ³gica "Fina": Forzar Santa Fe
     let zonaStr = criterios.zonas.length > 0 ? criterios.zonas[0] : 'santa-fe'
     
     // Mapeo manual de zonas ArgenProp si es necesario
@@ -1290,7 +1493,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     // Normalizar zona entrada
     let zonaKey = zonaStr.toLowerCase()
     
-    // Si no es ninguna de las satélites conocidas, asumir Santa Fe Capital
+    // Si no es ninguna de las satÃƒÂ©lites conocidas, asumir Santa Fe Capital
     // para evitar ir a 'Buenos Aires' por defecto.
     const zonasSatelite = ['rincon', 'santo tome', 'sauce viejo', 'colastine', 'arroyo leyes', 'recreo']
     let esSatelite = zonasSatelite.some(z => zonaKey.includes(z))
@@ -1314,14 +1517,14 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     // URL: https://www.argenprop.com/casa-venta-en-santa-fe-capital
     let url = `https://www.argenprop.com/${tipo}-${operacion}-en-${zonaFinal}`
     
-    // La URL siempre apunta a Santa Fe, así que confiamos en ella
+    // La URL siempre apunta a Santa Fe, asÃƒÂ­ que confiamos en ella
     const urlBusquedaEsSantaFe = true
     
     // Agregar parametro provincia para asegurar
-    // ArgenProp usa el slug geográfico completo a veces: santa-fe-santa-fe por ej
-    // Probamos con la URL canónica detectada arriba.
+    // ArgenProp usa el slug geogrÃƒÂ¡fico completo a veces: santa-fe-santa-fe por ej
+    // Probamos con la URL canÃƒÂ³nica detectada arriba.
 
-    // Agregar dormitorios si está disponible
+    // Agregar dormitorios si estÃƒÂ¡ disponible
     if (criterios.dormitoriosMin) {
       // Intentar agregar dormitorios en la URL
       url += `-${criterios.dormitoriosMin}-dormitorios`
@@ -1334,6 +1537,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
        url += `-hasta-${criterios.presupuestoMax}-${monedaUrl}`
     }
 
+    url = buildArgenPropUrl(criterios)
     console.log(`Scraping ArgenProp: ${url}`)
 
     const response = await fetchWithTimeout(url, {
@@ -1347,17 +1551,17 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
 
     const html = await response.text()
     if (!html || html.length < 500) {
-      console.warn(`ArgenProp: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      console.warn(`ArgenProp: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
 
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido o bloqueos
+    // Debug: Verificar si la pÃƒÂ¡gina tiene contenido o bloqueos
     const pageTitle = $('title').text()
-    console.log(`ArgenProp: Título de página: ${pageTitle.substring(0, 100)}`)
-    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden')) {
-      console.warn(`ArgenProp: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
+    console.log(`ArgenProp: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden')) {
+      console.warn(`ArgenProp: Posible bloqueo o CAPTCHA detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
     const items: any[] = []
@@ -1379,12 +1583,12 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
       const blackList = [
         // Buenos Aires / CABA
         'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-        'palermo', 'belgrano', 'recoleta', 'las cañitas', 'las canitas', 'cañitas',
+        'palermo', 'belgrano', 'recoleta', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
         'nunez', 'saavedra', 'villa urquiza', 'colegiales', 'caballito', 'almagro',
         'villa crespo', 'flores', 'floresta', 'barracas', 'la boca',
         'san telmo', 'montserrat', 'puerto madero', 'retiro', 'san nicolas',
         'microcentro buenos aires', 'microcentro caba',
-        // Calles y zonas específicas de Buenos Aires
+        // Calles y zonas especÃƒÂ­ficas de Buenos Aires
         'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
         'cid campeador', 'campeador',
         'villa crespo', 'villa urquiza', 'caballito', 'almagro', 'flores',
@@ -1403,19 +1607,19 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
         'rafaela', 'venado tuerto', 'reconquista', 'esperanza', 'sunchales'
       ]
 
-    // Intentar múltiples selectores para ArgenProp
+    // Intentar mÃƒÂºltiples selectores para ArgenProp
     let argenElements = $('.listing__item, .card, [class*="card"], [class*="listing"], article')
     
     if (argenElements.length === 0) {
-      // Si no encontramos con selectores específicos, intentar más genéricos
+      // Si no encontramos con selectores especÃƒÂ­ficos, intentar mÃƒÂ¡s genÃƒÂ©ricos
       argenElements = $('[class*="property"], [class*="item"], [data-testid]')
-      console.log(`ArgenProp: Usando selectores genéricos, encontrados: ${argenElements.length}`)
+      console.log(`ArgenProp: Usando selectores genÃƒÂ©ricos, encontrados: ${argenElements.length}`)
     } else {
-      console.log(`ArgenProp: Encontrados ${argenElements.length} elementos con selectores específicos`)
+      console.log(`ArgenProp: Encontrados ${argenElements.length} elementos con selectores especÃƒÂ­ficos`)
     }
     
     argenElements.each((i, el) => {
-      if (items.length >= 10) return // Aumentar a 10 resultados
+      if (items.length >= 20) return // Aumentar a 20 resultados
 
       const titulo = $(el).find('.card__title, .title, h2, h3, [class*="title"]').first().text().trim() || 
                      $(el).find('.card__address, [class*="address"]').first().text().trim()
@@ -1424,14 +1628,14 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
                         $(el).find('.card__address, [class*="address"]').first().text().trim()
       const urlRel = $(el).find('a').first().attr('href')
       
-      // Si no encontramos datos básicos, saltar este elemento
+      // Si no encontramos datos bÃƒÂ¡sicos, saltar este elemento
       if (!titulo && !precio) return
       
       // FILTRADO FLEXIBLE: Solo Santa Fe Capital y alrededores
       const ubicacionLower = ubicacion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       const tituloLower = titulo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
       
-      // Rechazar elementos de UI ANTES de procesar (más temprano)
+      // Rechazar elementos de UI ANTES de procesar (mÃƒÂ¡s temprano)
       if (tituloLower.length < 10 || 
           tituloLower.includes('buscar solo') || 
           tituloLower.includes('moneda:') ||
@@ -1448,11 +1652,11 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
                                    ubicacionLower.includes(', santa fe') ||
                                    tituloLower.includes(', santa fe')
       
-      // Validar URL primero (más confiable)
+      // Validar URL primero (mÃƒÂ¡s confiable)
       let urlValida = false
       if (urlRel) {
          const urlLower = urlRel.toLowerCase()
-         // Si la URL menciona santa-fe, es válida
+         // Si la URL menciona santa-fe, es vÃƒÂ¡lida
          if (urlLower.includes('santa-fe') || urlLower.includes('santafe')) {
              urlValida = true
          }
@@ -1463,12 +1667,12 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
          }
       }
       
-      // 1. VALIDACIÓN POSITIVA: Debe contener alguna zona de Santa Fe (en título/ubicación O en URL)
+      // 1. VALIDACIÃƒâ€œN POSITIVA: Debe contener alguna zona de Santa Fe (en tÃƒÂ­tulo/ubicaciÃƒÂ³n O en URL)
       const tieneZonaSantaFe = santaFeZonas.some(zona => 
         ubicacionLower.includes(zona.toLowerCase()) || tituloLower.includes(zona.toLowerCase())
       )
       
-      // 2. VALIDACIÓN NEGATIVA: Blacklist ESTRICTA (incluye URL también)
+      // 2. VALIDACIÃƒâ€œN NEGATIVA: Blacklist ESTRICTA (incluye URL tambiÃƒÂ©n)
       // PERO: NO aplicar blacklist si es claramente de Santa Fe
       let tieneProhibido = false
       if (!esClaramenteSantaFe) {
@@ -1487,19 +1691,19 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
         return
       }
       
-      // 4. FILTRO INTELIGENTE: Como la URL de búsqueda SIEMPRE apunta a Santa Fe, ser más permisivo
-      // Si la URL del item menciona santa-fe → aceptar
-      // Si tiene zona de Santa Fe explícita → aceptar
-      // Si NO tiene palabras prohibidas → aceptar (confiar en que el portal devolvió resultados de Santa Fe)
-      // Solo rechazar si tiene palabras prohibidas explícitas (ya validado arriba)
+      // 4. FILTRO INTELIGENTE: Como la URL de bÃƒÂºsqueda SIEMPRE apunta a Santa Fe, ser mÃƒÂ¡s permisivo
+      // Si la URL del item menciona santa-fe Ã¢â€ â€™ aceptar
+      // Si tiene zona de Santa Fe explÃƒÂ­cita Ã¢â€ â€™ aceptar
+      // Si NO tiene palabras prohibidas Ã¢â€ â€™ aceptar (confiar en que el portal devolviÃƒÂ³ resultados de Santa Fe)
+      // Solo rechazar si tiene palabras prohibidas explÃƒÂ­citas (ya validado arriba)
       if (urlValida) {
-        // URL del item válida (menciona santa-fe), aceptar
+        // URL del item vÃƒÂ¡lida (menciona santa-fe), aceptar
       } else if (tieneZonaSantaFe) {
-        // Tiene zona de Santa Fe explícita, aceptar
+        // Tiene zona de Santa Fe explÃƒÂ­cita, aceptar
       } else {
-        // Como la búsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas → aceptar
-        // Confiamos en que el portal devolvió resultados de Santa Fe
-        // No rechazar si no tiene indicadores explícitos, confiar en la URL de búsqueda
+        // Como la bÃƒÂºsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas Ã¢â€ â€™ aceptar
+        // Confiamos en que el portal devolviÃƒÂ³ resultados de Santa Fe
+        // No rechazar si no tiene indicadores explÃƒÂ­citos, confiar en la URL de bÃƒÂºsqueda
       }
 
       // La foto suele estar en data-src de un div o img
@@ -1509,7 +1713,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
         return
       }
       
-      // Validar que el item cumple con los criterios de búsqueda
+      // Validar que el item cumple con los criterios de bÃƒÂºsqueda
       const validacion = validarItemContraCriterios(titulo, precio, criterios, 'ArgenProp')
       if (!validacion.valido) {
         console.log(`ArgenProp: Rechazado - ${validacion.razon}: ${titulo.substring(0, 50)}`)
@@ -1547,16 +1751,17 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
     if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
     
-    // Remax usa búsqueda por ubicación
+    // Remax usa bÃƒÂºsqueda por ubicaciÃƒÂ³n
     // URL: https://www.remax.com.ar/propiedades/en-venta?address=Santa+Fe%2C+Santa+Fe
     let url = `https://www.remax.com.ar/propiedades/en-${operacion}?address=Santa+Fe%2C+Santa+Fe`
     
-    // Agregar filtros si están disponibles
+    // Agregar filtros si estÃƒÂ¡n disponibles
     if (criterios.presupuestoMax) {
       // Remax permite filtros en query params
       url += `&maxPrice=${criterios.presupuestoMax}`
     }
     
+    url = buildRemaxUrl(criterios)
     console.log(`Scraping Remax: ${url}`)
 
     const response = await fetchWithTimeout(url, {
@@ -1570,40 +1775,40 @@ async function scrapearRemax(criterios: BusquedaParseada) {
 
     const html = await response.text()
     if (!html || html.length < 500) {
-      console.warn(`Remax: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      console.warn(`Remax: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
 
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido o bloqueos
+    // Debug: Verificar si la pÃƒÂ¡gina tiene contenido o bloqueos
     const pageTitle = $('title').text()
-    console.log(`Remax: Título de página: ${pageTitle.substring(0, 100)}`)
-    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('access denied')) {
-      console.warn(`Remax: Posible bloqueo detectado. Título: ${pageTitle}`)
+    console.log(`Remax: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('access denied')) {
+      console.warn(`Remax: Posible bloqueo detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
     const items: any[] = []
     
-    // Remax: Intentar múltiples selectores
+    // Remax: Intentar mÃƒÂºltiples selectores
     let remaxElements = $('.property-card, .listing-card, [data-testid="property-card"], .card, article, [class*="property"], [class*="listing"]')
     
     if (remaxElements.length === 0) {
       remaxElements = $('[class*="card"], [class*="item"], [data-testid]')
-      console.log(`Remax: Usando selectores genéricos, encontrados: ${remaxElements.length}`)
+      console.log(`Remax: Usando selectores genÃƒÂ©ricos, encontrados: ${remaxElements.length}`)
     } else {
-      console.log(`Remax: Encontrados ${remaxElements.length} elementos con selectores específicos`)
+      console.log(`Remax: Encontrados ${remaxElements.length} elementos con selectores especÃƒÂ­ficos`)
     }
     
     remaxElements.each((i, el) => {
-      if (items.length >= 10) return // Aumentar a 10 resultados
+      if (items.length >= 20) return // Aumentar a 20 resultados
 
       const titulo = $(el).find('.property-title, .listing-title, h3, h4, [class*="title"]').first().text().trim()
       const precio = $(el).find('.property-price, .price, [data-testid="price"], [class*="price"]').first().text().trim()
       const ubicacion = $(el).find('.property-location, .location, [data-testid="location"], [class*="location"]').first().text().trim()
       const urlRel = $(el).find('a').first().attr('href')
       
-      // Si no encontramos datos básicos, saltar este elemento
+      // Si no encontramos datos bÃƒÂ¡sicos, saltar este elemento
       if (!titulo && !precio) return
       
       // Filtrar resultados de otras ciudades
@@ -1625,7 +1830,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
       // Blacklist: Excluir Buenos Aires y otras ciudades
       const blackList = [
         'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-        'palermo', 'belgrano', 'recoleta', 'las cañitas', 'las canitas', 'cañitas',
+        'palermo', 'belgrano', 'recoleta', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
         'nunez', 'saavedra', 'villa urquiza', 'colegiales', 'caballito', 'almagro',
         'villa crespo', 'flores', 'floresta', 'barracas', 'la boca',
         'san telmo', 'montserrat', 'puerto madero', 'retiro', 'san nicolas',
@@ -1647,11 +1852,11 @@ async function scrapearRemax(criterios: BusquedaParseada) {
                                    ubicacionLower.includes(', santa fe') ||
                                    tituloLower.includes(', santa fe')
       
-      // Validar URL primero (más confiable)
+      // Validar URL primero (mÃƒÂ¡s confiable)
       let urlValida = false
       if (urlRel) {
           const urlLower = urlRel.toLowerCase()
-          // Si la URL menciona santa-fe, es válida
+          // Si la URL menciona santa-fe, es vÃƒÂ¡lida
           if (urlLower.includes('santa-fe') || urlLower.includes('santafe')) {
               urlValida = true
           }
@@ -1662,12 +1867,12 @@ async function scrapearRemax(criterios: BusquedaParseada) {
           }
       }
       
-      // VALIDACIÓN POSITIVA: Debe contener alguna zona de Santa Fe (en título/ubicación O en URL)
+      // VALIDACIÃƒâ€œN POSITIVA: Debe contener alguna zona de Santa Fe (en tÃƒÂ­tulo/ubicaciÃƒÂ³n O en URL)
       const tieneZonaSantaFe = santaFeZonas.some(zona => 
         ubicacionLower.includes(zona.toLowerCase()) || tituloLower.includes(zona.toLowerCase())
       )
       
-      // VALIDACIÓN NEGATIVA: Blacklist ESTRICTA (incluye URL también)
+      // VALIDACIÃƒâ€œN NEGATIVA: Blacklist ESTRICTA (incluye URL tambiÃƒÂ©n)
       // PERO: NO aplicar blacklist si es claramente de Santa Fe
       let tieneProhibido = false
       if (!esClaramenteSantaFe) {
@@ -1686,19 +1891,19 @@ async function scrapearRemax(criterios: BusquedaParseada) {
         return
       }
       
-      // FILTRO INTELIGENTE: Como la URL de búsqueda SIEMPRE apunta a Santa Fe, ser más permisivo
-      // Si la URL del item menciona santa-fe → aceptar
-      // Si tiene zona de Santa Fe explícita → aceptar
-      // Si NO tiene palabras prohibidas → aceptar (confiar en que el portal devolvió resultados de Santa Fe)
-      // Solo rechazar si tiene palabras prohibidas explícitas (ya validado arriba)
+      // FILTRO INTELIGENTE: Como la URL de bÃƒÂºsqueda SIEMPRE apunta a Santa Fe, ser mÃƒÂ¡s permisivo
+      // Si la URL del item menciona santa-fe Ã¢â€ â€™ aceptar
+      // Si tiene zona de Santa Fe explÃƒÂ­cita Ã¢â€ â€™ aceptar
+      // Si NO tiene palabras prohibidas Ã¢â€ â€™ aceptar (confiar en que el portal devolviÃƒÂ³ resultados de Santa Fe)
+      // Solo rechazar si tiene palabras prohibidas explÃƒÂ­citas (ya validado arriba)
       if (urlValida) {
-        // URL del item válida (menciona santa-fe), aceptar
+        // URL del item vÃƒÂ¡lida (menciona santa-fe), aceptar
       } else if (tieneZonaSantaFe) {
-        // Tiene zona de Santa Fe explícita, aceptar
+        // Tiene zona de Santa Fe explÃƒÂ­cita, aceptar
       } else {
-        // Como la búsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas → aceptar
-        // Confiamos en que el portal devolvió resultados de Santa Fe
-        // No rechazar si no tiene indicadores explícitos, confiar en la URL de búsqueda
+        // Como la bÃƒÂºsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas Ã¢â€ â€™ aceptar
+        // Confiamos en que el portal devolviÃƒÂ³ resultados de Santa Fe
+        // No rechazar si no tiene indicadores explÃƒÂ­citos, confiar en la URL de bÃƒÂºsqueda
       }
 
       let img = $(el).find('img').first().attr('src') || $(el).find('img').first().attr('data-src')
@@ -1710,7 +1915,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
             ? `https://www.remax.com.ar${urlRel}`
             : null
 
-        // Validar que el item cumple con los criterios de búsqueda
+        // Validar que el item cumple con los criterios de bÃƒÂºsqueda
         if (titulo && precio) {
           const validacion = validarItemContraCriterios(titulo, precio, criterios, 'Remax')
           if (!validacion.valido) {
@@ -1727,9 +1932,9 @@ async function scrapearRemax(criterios: BusquedaParseada) {
            url: urlCompleta || url,
            img: img || null
         })
-        console.log(`Remax: Agregado item ${items.length}: ${titulo ? titulo.substring(0, 50) : 'Sin título'}`)
+        console.log(`Remax: Agregado item ${items.length}: ${titulo ? titulo.substring(0, 50) : 'Sin tÃƒÂ­tulo'}`)
       } else {
-        console.log(`Remax: Item rechazado - titulo: ${titulo ? 'Sí' : 'No'}, precio: ${precio ? 'Sí' : 'No'}`)
+        console.log(`Remax: Item rechazado - titulo: ${titulo ? 'SÃƒÂ­' : 'No'}, precio: ${precio ? 'SÃƒÂ­' : 'No'}`)
       }
     })
 
@@ -1748,25 +1953,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
 // ----------------------------------------------------------------------
 async function scrapearZonaProp(criterios: BusquedaParseada) {
   try {
-    const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
-    let tipo = 'inmuebles'
-    if (criterios.tipoPropiedad === 'CASA') tipo = 'casas'
-    if (criterios.tipoPropiedad === 'DEPARTAMENTO') tipo = 'departamentos'
-    if (criterios.tipoPropiedad === 'TERRENO') tipo = 'terrenos'
-    
-    // ZonaProp usa "ciudad-de-santa-fe-sf" para Santa Fe Capital
-    let url = `https://www.zonaprop.com.ar/${tipo}-${operacion}-ciudad-de-santa-fe-sf`
-    if (criterios.dormitoriosMin) url += `-${criterios.dormitoriosMin}-habitaciones`
-    url += '.html'
-    
-    // La URL siempre apunta a Santa Fe, así que confiamos en ella
-    const urlBusquedaEsSantaFe = true
-    
-    // Agregar filtro de precio si está disponible
-    if (criterios.presupuestoMax) {
-      const precioMax = criterios.presupuestoMax
-      url += `?precio-desde=0&precio-hasta=${precioMax}&moneda=${criterios.moneda === 'USD' ? 'USD' : 'ARS'}`
-    }
+    const url = buildZonaPropUrl(criterios)
 
     console.log(`Scraping ZonaProp: ${url}`)
 
@@ -1781,22 +1968,22 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
 
     const html = await response.text()
     if (!html || html.length < 500) {
-      console.warn(`ZonaProp: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      console.warn(`ZonaProp: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
 
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido o bloqueos
+    // Debug: Verificar si la pÃƒÂ¡gina tiene contenido o bloqueos
     const pageTitle = $('title').text()
-    console.log(`ZonaProp: Título de página: ${pageTitle.substring(0, 100)}`)
-    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
-      console.warn(`ZonaProp: Posible bloqueo o CAPTCHA detectado. Título: ${pageTitle}`)
+    console.log(`ZonaProp: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      console.warn(`ZonaProp: Posible bloqueo o CAPTCHA detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
     const items: any[] = []
     
-    // ZonaProp usa diferentes selectores según la versión
+    // ZonaProp usa diferentes selectores segÃƒÂºn la versiÃƒÂ³n
     const santaFeZonas = [
       'santa fe', 'santa-fe', 'santa fe capital', 'santa-fe-capital',
       'candioti', 'centro', 'microcentro', 'macrocentro', 'barrio sur', 'barrio norte',
@@ -1810,12 +1997,12 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
     
     const blackList = [
       'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-      'palermo', 'belgrano', 'recoleta', 'las cañitas', 'las canitas', 'cañitas',
+      'palermo', 'belgrano', 'recoleta', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
       'nunez', 'saavedra', 'villa urquiza', 'colegiales', 'caballito', 'almagro',
       'villa crespo', 'flores', 'floresta', 'barracas', 'la boca',
       'san telmo', 'montserrat', 'puerto madero', 'retiro', 'san nicolas',
       'microcentro buenos aires', 'microcentro caba',
-      // Calles y zonas específicas de Buenos Aires
+      // Calles y zonas especÃƒÂ­ficas de Buenos Aires
       'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
       'cid campeador', 'campeador',
       'san martin buenos aires', 'san martin gba',
@@ -1828,25 +2015,25 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
       'rafaela', 'venado tuerto', 'reconquista', 'esperanza', 'sunchales'
     ]
 
-    // ZonaProp: Intentar múltiples selectores
+    // ZonaProp: Intentar mÃƒÂºltiples selectores
     let zonaElements = $('.posting-card, .posting, [data-posting-id], .card, article, [class*="posting"], [class*="card"]')
     
     if (zonaElements.length === 0) {
       zonaElements = $('[class*="property"], [class*="item"], [data-testid]')
-      console.log(`ZonaProp: Usando selectores genéricos, encontrados: ${zonaElements.length}`)
+      console.log(`ZonaProp: Usando selectores genÃƒÂ©ricos, encontrados: ${zonaElements.length}`)
     } else {
-      console.log(`ZonaProp: Encontrados ${zonaElements.length} elementos con selectores específicos`)
+      console.log(`ZonaProp: Encontrados ${zonaElements.length} elementos con selectores especÃƒÂ­ficos`)
     }
     
     zonaElements.each((i, el) => {
-      if (items.length >= 10) return
+      if (items.length >= 20) return
 
       const titulo = $(el).find('.posting-title, .posting-title a, h2, .title, [class*="title"]').first().text().trim()
       const precio = $(el).find('.posting-price, .price, [data-price], [class*="price"]').first().text().trim()
       const ubicacion = $(el).find('.posting-location, .location, .address, [class*="location"]').first().text().trim()
       const urlRel = $(el).find('a').first().attr('href')
       
-      // Si no encontramos datos básicos, saltar este elemento
+      // Si no encontramos datos bÃƒÂ¡sicos, saltar este elemento
       if (!titulo && !precio) return
       
       const ubicacionLower = ubicacion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -1881,11 +2068,11 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
       // Blacklist ESTRICTA de Buenos Aires
       const blackListEstricta = [
         'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-        'palermo', 'belgrano', 'las cañitas', 'las canitas', 'cañitas',
+        'palermo', 'belgrano', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
         'puerto madero', 'retiro', 'microcentro buenos aires', 'microcentro caba',
         'quilmes', 'lanus', 'san isidro', 'tigre', 'san fernando',
         'rosario', 'cordoba', 'mendoza', 'tucuman', 'la plata', 'mar del plata',
-        // Calles y zonas específicas de Buenos Aires
+        // Calles y zonas especÃƒÂ­ficas de Buenos Aires
         'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
         'cid campeador', 'campeador',
         'villa crespo', 'villa urquiza', 'caballito', 'almagro', 'flores',
@@ -1903,25 +2090,25 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
       // FILTRO ESTRICTO: Rechazar SIEMPRE si tiene palabras prohibidas Y NO es claramente de Santa Fe
       if (tieneProhibido && !esClaramenteSantaFe) return
       
-      // FILTRO INTELIGENTE: Como la URL de búsqueda SIEMPRE apunta a Santa Fe, ser más permisivo
-      // Si la URL del item menciona santa-fe → aceptar
-      // Si tiene zona de Santa Fe explícita → aceptar
-      // Si NO tiene palabras prohibidas → aceptar (confiar en que el portal devolvió resultados de Santa Fe)
-      // Solo rechazar si tiene palabras prohibidas explícitas (ya validado arriba)
+      // FILTRO INTELIGENTE: Como la URL de bÃƒÂºsqueda SIEMPRE apunta a Santa Fe, ser mÃƒÂ¡s permisivo
+      // Si la URL del item menciona santa-fe Ã¢â€ â€™ aceptar
+      // Si tiene zona de Santa Fe explÃƒÂ­cita Ã¢â€ â€™ aceptar
+      // Si NO tiene palabras prohibidas Ã¢â€ â€™ aceptar (confiar en que el portal devolviÃƒÂ³ resultados de Santa Fe)
+      // Solo rechazar si tiene palabras prohibidas explÃƒÂ­citas (ya validado arriba)
       if (urlValida) {
-        // URL del item válida (menciona santa-fe), aceptar
+        // URL del item vÃƒÂ¡lida (menciona santa-fe), aceptar
       } else if (tieneZonaSantaFe) {
-        // Tiene zona de Santa Fe explícita, aceptar
+        // Tiene zona de Santa Fe explÃƒÂ­cita, aceptar
       } else {
-        // Como la búsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas → aceptar
-        // Confiamos en que el portal devolvió resultados de Santa Fe
-        // No rechazar si no tiene indicadores explícitos, confiar en la URL de búsqueda
+        // Como la bÃƒÂºsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas Ã¢â€ â€™ aceptar
+        // Confiamos en que el portal devolviÃƒÂ³ resultados de Santa Fe
+        // No rechazar si no tiene indicadores explÃƒÂ­citos, confiar en la URL de bÃƒÂºsqueda
       }
 
       let img = $(el).find('img').first().attr('data-src') || $(el).find('img').first().attr('src')
 
       if (titulo && precio && urlRel) {
-        // Validar que el item cumple con los criterios de búsqueda
+        // Validar que el item cumple con los criterios de bÃƒÂºsqueda
         const validacion = validarItemContraCriterios(titulo, precio, criterios, 'ZonaProp')
         if (!validacion.valido) {
           console.log(`ZonaProp: Rechazado - ${validacion.razon}: ${titulo.substring(0, 50)}`)
@@ -1967,13 +2154,14 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     // Buscainmueble usa formato: /propiedades/{tipo}s-en-{operacion}-en-santa-fe-santa-fe
     let url = `https://www.buscainmueble.com/propiedades/${tipo}-en-${operacion}-en-santa-fe-santa-fe`
     
-    // La URL siempre apunta a Santa Fe, así que confiamos en ella
+    // La URL siempre apunta a Santa Fe, asÃƒÂ­ que confiamos en ella
     const urlBusquedaEsSantaFe = true
     
     if (criterios.presupuestoMax) {
       url += `?precio_max=${criterios.presupuestoMax}&moneda=${criterios.moneda === 'USD' ? 'USD' : 'ARS'}`
     }
 
+    url = buildBuscainmuebleUrl(criterios)
     console.log(`Scraping Buscainmueble: ${url}`)
 
     const response = await fetchWithTimeout(url, {
@@ -1987,17 +2175,17 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
 
     const html = await response.text()
     if (!html || html.length < 500) {
-      console.warn(`Buscainmueble: Se recibió HTML vacío o muy corto (${html?.length || 0} bytes)`)
+      console.warn(`Buscainmueble: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
 
     const $ = cheerio.load(html)
     
-    // Debug: Verificar si la página tiene contenido o bloqueos
+    // Debug: Verificar si la pÃƒÂ¡gina tiene contenido o bloqueos
     const pageTitle = $('title').text()
-    console.log(`Buscainmueble: Título de página: ${pageTitle.substring(0, 100)}`)
-    if (pageTitle.toLowerCase().includes('atención') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
-      console.warn(`Buscainmueble: Posible bloqueo detectado. Título: ${pageTitle}`)
+    console.log(`Buscainmueble: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
+    if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      console.warn(`Buscainmueble: Posible bloqueo detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
     const items: any[] = []
@@ -2015,12 +2203,12 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     
     const blackList = [
       'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-      'palermo', 'belgrano', 'recoleta', 'las cañitas', 'las canitas', 'cañitas',
+      'palermo', 'belgrano', 'recoleta', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
       'nunez', 'saavedra', 'villa urquiza', 'colegiales', 'caballito', 'almagro',
       'villa crespo', 'flores', 'floresta', 'barracas', 'la boca',
       'san telmo', 'montserrat', 'puerto madero', 'retiro', 'san nicolas',
       'microcentro buenos aires', 'microcentro caba',
-      // Calles y zonas específicas de Buenos Aires
+      // Calles y zonas especÃƒÂ­ficas de Buenos Aires
       'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
       'cid campeador', 'campeador',
       'san martin buenos aires', 'san martin gba',
@@ -2033,25 +2221,25 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
       'rafaela', 'venado tuerto', 'reconquista', 'esperanza', 'sunchales'
     ]
 
-    // Buscainmueble: Intentar múltiples selectores
+    // Buscainmueble: Intentar mÃƒÂºltiples selectores
     let buscaElements = $('.property-card, .listing-item, [data-property-id], .card, article, [class*="property"], [class*="card"]')
     
     if (buscaElements.length === 0) {
       buscaElements = $('[class*="item"], [class*="listing"], [data-testid]')
-      console.log(`Buscainmueble: Usando selectores genéricos, encontrados: ${buscaElements.length}`)
+      console.log(`Buscainmueble: Usando selectores genÃƒÂ©ricos, encontrados: ${buscaElements.length}`)
     } else {
-      console.log(`Buscainmueble: Encontrados ${buscaElements.length} elementos con selectores específicos`)
+      console.log(`Buscainmueble: Encontrados ${buscaElements.length} elementos con selectores especÃƒÂ­ficos`)
     }
     
     buscaElements.each((i, el) => {
-      if (items.length >= 10) return
+      if (items.length >= 20) return
 
       const titulo = $(el).find('.property-title, .title, h3, h4, [class*="title"]').first().text().trim()
       const precio = $(el).find('.property-price, .price, [class*="price"]').first().text().trim()
       const ubicacion = $(el).find('.property-location, .location, [class*="location"]').first().text().trim()
       const urlRel = $(el).find('a').first().attr('href')
       
-      // Si no encontramos datos básicos, saltar este elemento
+      // Si no encontramos datos bÃƒÂ¡sicos, saltar este elemento
       if (!titulo && !precio) return
       
       const ubicacionLower = ubicacion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -2086,11 +2274,11 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
       // Blacklist ESTRICTA de Buenos Aires
       const blackListEstricta = [
         'buenos aires', 'capital federal', 'caba', 'bs as', 'bs-as', 'buenosaires',
-        'palermo', 'belgrano', 'las cañitas', 'las canitas', 'cañitas',
+        'palermo', 'belgrano', 'las caÃƒÂ±itas', 'las canitas', 'caÃƒÂ±itas',
         'puerto madero', 'retiro', 'microcentro buenos aires', 'microcentro caba',
         'quilmes', 'lanus', 'san isidro', 'tigre', 'san fernando',
         'rosario', 'cordoba', 'mendoza', 'tucuman', 'la plata', 'mar del plata',
-        // Calles y zonas específicas de Buenos Aires
+        // Calles y zonas especÃƒÂ­ficas de Buenos Aires
         'hilarion', 'quintana', 'hilarion de la quintana', 'villa ballester',
         'cid campeador', 'campeador',
         'villa crespo', 'villa urquiza', 'caballito', 'almagro', 'flores',
@@ -2108,25 +2296,25 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
       // FILTRO ESTRICTO: Rechazar SIEMPRE si tiene palabras prohibidas Y NO es claramente de Santa Fe
       if (tieneProhibido && !esClaramenteSantaFe) return
       
-      // FILTRO INTELIGENTE: Como la URL de búsqueda SIEMPRE apunta a Santa Fe, ser más permisivo
-      // Si la URL del item menciona santa-fe → aceptar
-      // Si tiene zona de Santa Fe explícita → aceptar
-      // Si NO tiene palabras prohibidas → aceptar (confiar en que el portal devolvió resultados de Santa Fe)
-      // Solo rechazar si tiene palabras prohibidas explícitas (ya validado arriba)
+      // FILTRO INTELIGENTE: Como la URL de bÃƒÂºsqueda SIEMPRE apunta a Santa Fe, ser mÃƒÂ¡s permisivo
+      // Si la URL del item menciona santa-fe Ã¢â€ â€™ aceptar
+      // Si tiene zona de Santa Fe explÃƒÂ­cita Ã¢â€ â€™ aceptar
+      // Si NO tiene palabras prohibidas Ã¢â€ â€™ aceptar (confiar en que el portal devolviÃƒÂ³ resultados de Santa Fe)
+      // Solo rechazar si tiene palabras prohibidas explÃƒÂ­citas (ya validado arriba)
       if (urlValida) {
-        // URL del item válida (menciona santa-fe), aceptar
+        // URL del item vÃƒÂ¡lida (menciona santa-fe), aceptar
       } else if (tieneZonaSantaFe) {
-        // Tiene zona de Santa Fe explícita, aceptar
+        // Tiene zona de Santa Fe explÃƒÂ­cita, aceptar
       } else {
-        // Como la búsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas → aceptar
-        // Confiamos en que el portal devolvió resultados de Santa Fe
-        // No rechazar si no tiene indicadores explícitos, confiar en la URL de búsqueda
+        // Como la bÃƒÂºsqueda SIEMPRE apunta a Santa Fe y no tiene palabras prohibidas Ã¢â€ â€™ aceptar
+        // Confiamos en que el portal devolviÃƒÂ³ resultados de Santa Fe
+        // No rechazar si no tiene indicadores explÃƒÂ­citos, confiar en la URL de bÃƒÂºsqueda
       }
 
       let img = $(el).find('img').first().attr('data-src') || $(el).find('img').first().attr('src')
 
       if (titulo && precio && urlRel) {
-        // Validar que el item cumple con los criterios de búsqueda
+        // Validar que el item cumple con los criterios de bÃƒÂºsqueda
         const validacion = validarItemContraCriterios(titulo, precio, criterios, 'Buscainmueble')
         if (!validacion.valido) {
           console.log(`Buscainmueble: Rechazado - ${validacion.razon}: ${titulo.substring(0, 50)}`)
@@ -2147,7 +2335,7 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
         })
         console.log(`Buscainmueble: Agregado item ${items.length}: ${titulo.substring(0, 50)}`)
       } else {
-        console.log(`Buscainmueble: Item rechazado - titulo: ${titulo ? 'Sí' : 'No'}, precio: ${precio ? 'Sí' : 'No'}, url: ${urlRel ? 'Sí' : 'No'}`)
+        console.log(`Buscainmueble: Item rechazado - titulo: ${titulo ? 'SÃƒÂ­' : 'No'}, precio: ${precio ? 'SÃƒÂ­' : 'No'}, url: ${urlRel ? 'SÃƒÂ­' : 'No'}`)
       }
     })
 
@@ -2159,4 +2347,9 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     return []
   }
 }
+
+
+
+
+
 

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -39,6 +39,157 @@ interface CurrentUser {
 }
 
 const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
+const MERCADO_UNICO_INMOBILIARIAS = [
+  '9010 Inmobiliaria',
+  'AGP Negocios Inmobiliarios',
+  'ALICANDRO SRL',
+  'ANA MORE PROPIEDADES',
+  'ANABEL INMOBILIARIA',
+  'APL GATTAS',
+  'APL Inmobiliaria',
+  'AQUARAELLA INMOBILIARIA',
+  'AUSTRAL INMOBILIARIA',
+  'Abraham Inmobiliaria',
+  'Agustin Leiva Propiedades',
+  'Alianza Real Estate',
+  'Andres&Andres',
+  'Awen Propiedades',
+  'AyG Inmobiliaria',
+  'BARCAS Inmobiliaria',
+  'BIROCCO BIENES RAICES',
+  'BREGA Inmobiliaria',
+  'BRUCKEN Inmobiliaria',
+  'Benuzzi Inmobiliaria',
+  'Bernardi Inmobiliaria',
+  'Bossio Propiedades',
+  'CAIROLI INMOBILIARIA',
+  'CARLUCCI Inmobiliaria',
+  'CASA MAYOR Servicios Inmobiliarios',
+  'CASABLANCA SRL',
+  'CF PROPIEDADES',
+  'COFASA administracion de inmuebles',
+  'COPRI SA',
+  'COSTA PROPIEDADES',
+  'Candioti Bienes Raices',
+  'Capital Propiedades',
+  'Carina Meurzet Propiedades',
+  'Casastierra Inmobiliaria',
+  'Cometto Inmobiliaria',
+  'Compania Inmobiliaria',
+  'Concepto Negocios Inmobiliarios',
+  'DUXON Inmobiliaria',
+  'Demichelis & Biasoni Inmobiliaria',
+  'EMINENT inmobiliaria',
+  'ENFOQUE Inmobiliaria',
+  'Emprendimientos Inmobiliarios Barbier',
+  'Estudio Tonina Inmobiliaria',
+  'FORTEN PROPIEDADES',
+  'Fides Inmobiliaria',
+  'Fincas del Litoral',
+  'GM PROPIEDADES',
+  'GROSSO PROPIEDADES',
+  'Gentina Inmobiliaria',
+  'Gerelli y Correnti Inmobiliaria',
+  'Gomez Galvez Inmobiliaria',
+  'Grow Inmobiliaria',
+  'Grupo Cuatro Inmobiliaria',
+  'Grupo ID Inmobiliaria',
+  'HO2 Mediaciones Inmobiliarias',
+  'INMOCORP Broker Inmobiliario',
+  'INNOVA INMOBILIARIA',
+  'Incosur Gestion Inmobiliaria',
+  'Inmobiliaria Reinoso',
+  'Inmobiliaria Weidmann',
+  'Inversiones Negocios Inmobiliarios',
+  'JB&NL negocios inmobiliarios',
+  'LOQUET Inmobiliaria',
+  'Lenarduzzi Inmobiliaria',
+  'Lingua Inmobiliaria',
+  'M.A.S. Gestion inmobiliaria',
+  'MARED',
+  'MB Inmobiliaria',
+  'MB Propiedades',
+  'MEGA',
+  'MENZELLA INMOBILIARIA',
+  'Mercado Unico',
+  'Metropolis Santa Fe',
+  'Migone',
+  'Monza Negocios Inmobiliarios',
+  'NEXO inmobiliaria',
+  'Pedro Marelli Inmobiliaria',
+  'Penalva Inmobiliaria',
+  'Pi Propiedades',
+  'Pilay Inmobiliaria',
+  'Pino Maglione Negocios Inmobiliarios',
+  'Platino Inversiones Inmobiliarias',
+  'Plaza Inmobiliaria',
+  'Plus Inmobiliaria + Desarrollos',
+  'Porto Asesores',
+  'Postigo Sauan Inmobiliaria',
+  'Puentes Bienes Raices',
+  'RAES Inversiones',
+  'RUBEN BOSCO PROPIEDADES',
+  'Raffin Inmobiliaria',
+  'Raices Inmobiliaria',
+  'Realeza Inmobiliaria',
+  'Rodolfo Curcio Propiedades',
+  'Royo Inmobiliaria',
+  'S.AIELLO Servicios Inmobiliarios',
+  'SAUCE Inmobiliaria',
+  'SIGNARA Inmobiliaria',
+  'SITIO SERVICIOS INMOBILIARIOS',
+  'SOFIA EMPRENDIMIENTOS',
+  'STAMATI PROPIEDADES',
+  'SUR Inmobiliaria',
+  'Samar Inmobiliaria',
+  'Santa Fe Propiedades',
+  'Sarricchio Bienes Raices',
+  'Sanudo Inmobiliaria',
+  'Silvina Grosso',
+  'Solar Inmobiliaria',
+  'Soluciones Inmobiliarias',
+  'Strada Peirotti SRL',
+  'TAVERNA INMOBILIARIA',
+  'Terra Soluciones Inmobiliarias',
+  'TOMAS INMOBILIARIA',
+  'Uibao Propiedades',
+  'Urbano soluciones inmobiliarias',
+  'VERA CRUZ INMOBILIARIA',
+  'VISINTIN EMPRENDIMIENTOS INMOBILIARIOS',
+  'Vestalia',
+  'Villa Inmobiliaria',
+  'XAVI LOZA - XL GESTION DE NEGOCIOS',
+]
+
+const MERCADO_UNICO_SITIOS_OFICIALES: Record<string, string> = {
+  'solar inmobiliaria': 'https://solarinmobiliaria.com.ar/',
+  'mercado unico': 'https://www.mercado-unico.com/',
+  'pilay inmobiliaria': 'https://www.pilay.com.ar/',
+  'raes inversiones': 'https://www.raesinversiones.com/',
+  'remax': 'https://www.remax.com.ar/',
+  'century 21': 'https://www.century21.com.ar/',
+  'properstar': 'https://www.properstar.com/',
+}
+
+const normalizeInmoName = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+
+const buildSitioOficialSearchUrl = (inmo: string) =>
+  `https://www.google.com/search?q=${encodeURIComponent(`"${inmo}" inmobiliaria santa fe sitio oficial`)}`
+
+const getSitioOficialInmo = (inmo: string) => {
+  const key = normalizeInmoName(inmo)
+  return MERCADO_UNICO_SITIOS_OFICIALES[key] || buildSitioOficialSearchUrl(inmo)
+}
+
+const hasSitioOficialInmo = (inmo: string) => {
+  const key = normalizeInmoName(inmo)
+  return Boolean(MERCADO_UNICO_SITIOS_OFICIALES[key])
+}
 
 export default function BusquedasPage() {
   const router = useRouter()
@@ -57,6 +208,15 @@ export default function BusquedasPage() {
   const [linkExternoTitulo, setLinkExternoTitulo] = useState('')
   const [linkSeleccionado, setLinkSeleccionado] = useState<string | null>(null)
   const [usuarios, setUsuarios] = useState<any[]>([])
+  const [filtrosPortales, setFiltrosPortales] = useState({
+    moneda: '',
+    precioDesde: '',
+    precioHasta: '',
+    dormitoriosMin: '',
+    ambientesMin: '',
+  })
+  const [aplicandoFiltrosPortales, setAplicandoFiltrosPortales] = useState(false)
+  const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
 
   const [formData, setFormData] = useState({
     clienteId: '',
@@ -78,10 +238,10 @@ export default function BusquedasPage() {
     'Santa Fe Capital',
     'Santa Fe y alrededores',
     'Recreo',
-    'Santo Tomé',
+    'Santo Tome',
     'Sauce Viejo',
     'Arroyo Leyes',
-    'Colastiné',
+    'Colastine',
   ]
 
   const BARRIOS_SANTA_FE_CAPITAL = [
@@ -106,12 +266,12 @@ export default function BusquedasPage() {
     'Barranquitas',
     'Los Hornos',
     'Ciudadela',
-    'San Martín',
+    'San Martin',
     'Puerto',
     'Costanera',
     'Villa Setubal',
     'Sargento Cabral',
-    'María Selva',
+    'Maria Selva',
     'Dentro de Bulevares',
   ]
 
@@ -121,6 +281,10 @@ export default function BusquedasPage() {
 
   useEffect(() => {
     if (currentUser) {
+      if (currentUser.rol === 'admin') {
+        router.replace('/admin/tablero-busquedas')
+        return
+      }
       Promise.all([fetchBusquedas(), fetchClientes()])
       if (currentUser.rol === 'admin') {
         fetchUsuarios()
@@ -164,7 +328,7 @@ export default function BusquedasPage() {
         const data = await res.json()
         setCurrentUser(data.user)
       } else {
-        // Si no está autenticado, redirigir al login
+        // Si no estÃƒÂ¡ autenticado, redirigir al login
         if (res.status === 401) {
           router.push('/login')
         } else {
@@ -174,7 +338,7 @@ export default function BusquedasPage() {
       }
     } catch (error) {
       console.error('Error obteniendo usuario actual:', error)
-      // En caso de error de red, también redirigir al login
+      // En caso de error de red, tambiÃƒÂ©n redirigir al login
       router.push('/login')
       setLoading(false)
     }
@@ -189,7 +353,7 @@ export default function BusquedasPage() {
         if (Array.isArray(data)) {
           setUsuarios(data)
         } else {
-          console.error('Respuesta inválida del servidor:', data)
+          console.error('Respuesta invalida del servidor:', data)
           setUsuarios([])
         }
       } else {
@@ -206,13 +370,13 @@ export default function BusquedasPage() {
     try {
       const response = await fetch('/api/busquedas')
       if (!response.ok) {
-        // Si hay error de autenticación, redirigir al login
+        // Si hay error de autenticaciÃƒÂ³n, redirigir al login
         if (response.status === 401) {
           router.push('/login')
           return
         }
-        console.error('Error al obtener búsquedas:', response.status)
-        setBusquedas([]) // Establecer array vacío en caso de error
+        console.error('Error al obtener bÃƒÂºsquedas:', response.status)
+        setBusquedas([]) // Establecer array vacÃƒÂ­o en caso de error
         setLoading(false)
         return
       }
@@ -222,12 +386,12 @@ export default function BusquedasPage() {
       if (Array.isArray(data)) {
         setBusquedas(data)
       } else {
-        console.error('Respuesta inválida del servidor:', data)
+        console.error('Respuesta invalida del servidor:', data)
         setBusquedas([])
       }
     } catch (error) {
       console.error('Error:', error)
-      setBusquedas([]) // Establecer array vacío en caso de error
+      setBusquedas([]) // Establecer array vacÃƒÂ­o en caso de error
     } finally {
       setLoading(false)
     }
@@ -252,7 +416,7 @@ export default function BusquedasPage() {
         if (Array.isArray(data)) {
           setClientes(data)
         } else {
-          console.error('Respuesta inválida del servidor:', data)
+          console.error('Respuesta invalida del servidor:', data)
           setClientes([])
         }
       } else {
@@ -275,7 +439,7 @@ export default function BusquedasPage() {
     }
 
     try {
-      // Validar que clienteId esté presente y sea válido
+      // Validar que clienteId estÃƒÂ© presente y sea vÃƒÂ¡lido
       if (!formData.clienteId || formData.clienteId.trim() === '') {
         alert('Por favor selecciona un cliente')
         return
@@ -309,7 +473,7 @@ export default function BusquedasPage() {
         payload.tipoPropiedad = formData.tipoPropiedad.trim()
       }
 
-      // Ubicación (Santa Fe)
+      // UbicaciÃƒÂ³n (Santa Fe)
       const ubicacionPartes: string[] = []
       if (formData.barrio) ubicacionPartes.push(formData.barrio)
       if (formData.ciudad) ubicacionPartes.push(formData.ciudad)
@@ -355,11 +519,11 @@ export default function BusquedasPage() {
         await fetchBusquedas()
       } else {
         const errorData = await response.json().catch(() => null)
-        alert(errorData?.error || 'Error al crear búsqueda')
+        alert(errorData?.error || 'Error al crear bÃƒÂºsqueda')
       }
     } catch (error: any) {
       console.error('Error:', error)
-      alert(`Error de conexión: ${error.message || 'No se pudo conectar al servidor'}`)
+      alert(`Error de conexion: ${error.message || 'No se pudo conectar al servidor'}`)
     }
   }
 
@@ -374,26 +538,119 @@ export default function BusquedasPage() {
     if (b.tipoPropiedad) partes.push(`Busco ${b.tipoPropiedad}`)
     if (b.ubicacionPreferida) partes.push(`en ${b.ubicacionPreferida}`)
 
+    const parseNum = (value: string) => Number.parseInt(value.replace(/[^\d]/g, ''), 10)
     const moneda = (b as any).moneda || 'USD'
-    const desdeMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/desde\s+(\d+)/i) : null
-    const rangoMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/(\d+)\s*[-–]\s*(\d+)/) : null
+    const desdeMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/desde\s+(?:u\$s|u\$d|usd|ars|\$)?\s*([\d.,]+)/i) : null
+    const rangoMatch = typeof b.presupuestoTexto === 'string' ? b.presupuestoTexto.match(/(?:u\$s|u\$d|usd|ars|\$)?\s*([\d.,]+)\s*[-\u2013]\s*(?:u\$s|u\$d|usd|ars|\$)?\s*([\d.,]+)/i) : null
 
     if (rangoMatch) {
-      const d = parseInt(rangoMatch[1])
-      const h = parseInt(rangoMatch[2])
+      const d = parseNum(rangoMatch[1])
+      const h = parseNum(rangoMatch[2])
       if (!isNaN(d) && !isNaN(h)) partes.push(`presupuesto entre ${moneda} ${d} y ${h}`)
     } else if (desdeMatch) {
-      const d = parseInt(desdeMatch[1])
+      const d = parseNum(desdeMatch[1])
       if (!isNaN(d)) partes.push(`presupuesto desde ${moneda} ${d}`)
     } else if (typeof b.presupuestoTexto === 'string' && b.presupuestoTexto.trim()) {
       partes.push(`presupuesto hasta ${b.presupuestoTexto}`)
     }
 
     if (typeof b.dormitoriosMin === 'number' && b.dormitoriosMin > 0) {
-      partes.push(`${b.dormitoriosMin} dormitorios mínimo`)
+      partes.push(`${b.dormitoriosMin} dormitorios mÃƒÂ­nimo`)
     }
     partes.push('Enviar opciones')
     return partes.join('. ') + '.'
+  }
+
+  const getPortalBadge = (sitio?: string | null): string => {
+    const s = (sitio || '').toLowerCase()
+    if (s.includes('zonaprop')) return 'ZP'
+    if (s.includes('argenprop')) return 'AP'
+    if (s.includes('mercado')) return 'ML'
+    if (s.includes('remax')) return 'RX'
+    if (s.includes('google')) return 'GO'
+    if (s.includes('century')) return 'C21'
+    if (s.includes('busca')) return 'BI'
+    return 'WEB'
+  }
+
+  const getPortalSearchLinks = (criterios: any, filtros: any) => {
+    const op = criterios?.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+    const moneda = String(filtros?.moneda || criterios?.moneda || 'USD').toUpperCase() === 'ARS' ? 'ARS' : 'USD'
+    const precioDesde = Number(filtros?.precioDesde || criterios?.presupuestoMin || 0) || null
+    const precioHasta = Number(filtros?.precioHasta || criterios?.presupuestoMax || 0) || null
+    const dormMin = Number(filtros?.dormitoriosMin || criterios?.dormitoriosMin || filtros?.ambientesMin || criterios?.ambientesMin || 0) || null
+
+    let zpTipo = 'inmuebles'
+    if (criterios?.tipoPropiedad === 'CASA') zpTipo = 'casas'
+    if (criterios?.tipoPropiedad === 'DEPARTAMENTO') zpTipo = 'departamentos'
+    if (criterios?.tipoPropiedad === 'TERRENO') zpTipo = 'terrenos'
+    let zonaprop = `https://www.zonaprop.com.ar/${zpTipo}-${op}-ciudad-de-santa-fe-sf`
+    if (dormMin) zonaprop += `-${dormMin}-habitaciones`
+    zonaprop += '.html'
+    const zpParams = new URLSearchParams()
+    if (precioDesde) zpParams.set('precio-desde', String(precioDesde))
+    if (precioHasta) zpParams.set('precio-hasta', String(precioHasta))
+    if (precioDesde) zpParams.set('price_from', String(precioDesde))
+    if (precioHasta) zpParams.set('price_to', String(precioHasta))
+    if (precioDesde || precioHasta) zpParams.set('moneda', moneda)
+    if (precioDesde || precioHasta) zpParams.set('currency', moneda)
+    const zpQ = zpParams.toString()
+    if (zpQ) zonaprop += `?${zpQ}`
+
+    let apTipo = 'inmuebles'
+    if (criterios?.tipoPropiedad === 'CASA') apTipo = 'casa'
+    if (criterios?.tipoPropiedad === 'DEPARTAMENTO') apTipo = 'departamento'
+    if (criterios?.tipoPropiedad === 'TERRENO') apTipo = 'terreno'
+    let argenprop = `https://www.argenprop.com/${apTipo}-${op}-en-santa-fe-capital`
+    if (dormMin) argenprop += `-${dormMin}-dormitorios`
+    if (precioHasta) argenprop += `-hasta-${precioHasta}-${moneda === 'USD' ? 'dolares' : 'pesos'}`
+    
+    let mlTipo = 'inmuebles'
+    if (criterios?.tipoPropiedad === 'CASA') mlTipo = 'casas'
+    if (criterios?.tipoPropiedad === 'DEPARTAMENTO') mlTipo = 'departamentos'
+    if (criterios?.tipoPropiedad === 'TERRENO') mlTipo = 'terrenos'
+    let mercadolibre = `https://inmuebles.mercadolibre.com.ar/${mlTipo}/${op}/santa-fe/santa-fe-capital`
+    const mlParams = new URLSearchParams()
+    if (dormMin) mlParams.set('DORMITORIOS', String(dormMin))
+    if (precioDesde) mlParams.set('precio_desde', String(precioDesde))
+    if (precioHasta) mlParams.set('precio_hasta', String(precioHasta))
+    const mlQ = mlParams.toString()
+    if (mlQ) mercadolibre += `?${mlQ}`
+
+    let remax = `https://www.remax.com.ar/propiedades/en-${op}?address=Santa+Fe%2C+Santa+Fe`
+    const rxParams = new URLSearchParams()
+    if (precioDesde) rxParams.set('minPrice', String(precioDesde))
+    if (precioHasta) rxParams.set('maxPrice', String(precioHasta))
+    if (dormMin) rxParams.set('rooms', String(dormMin))
+    const rxQ = rxParams.toString()
+    if (rxQ) remax += `&${rxQ}`
+
+    return [
+      { id: 'zonaprop', label: 'ZonaProp', url: zonaprop },
+      { id: 'argenprop', label: 'ArgenProp', url: argenprop },
+      { id: 'mercadolibre', label: 'MercadoLibre', url: mercadolibre },
+      { id: 'remax', label: 'Remax', url: remax },
+    ]
+  }
+
+  const getAnalisisExtraLinks = (criterios: any, filtros: any) => {
+    const op = criterios?.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
+    const dormMin = Number(filtros?.dormitoriosMin || criterios?.dormitoriosMin || filtros?.ambientesMin || criterios?.ambientesMin || 0) || null
+    const precioDesde = Number(filtros?.precioDesde || criterios?.presupuestoMin || 0) || null
+    const precioHasta = Number(filtros?.precioHasta || criterios?.presupuestoMax || 0) || null
+    const tipo = String(criterios?.tipoPropiedad || 'propiedad').toLowerCase()
+    const q = `${tipo} ${op} santa fe capital ${dormMin ? `${dormMin} dormitorios` : ''} ${precioDesde ? `desde ${precioDesde}` : ''} ${precioHasta ? `hasta ${precioHasta}` : ''}`.trim()
+
+    return [
+      { id: 'google', label: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent(q)}` },
+      { id: 'site_zp', label: 'ZonaProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:zonaprop.com.ar ${q}`)}` },
+      { id: 'site_ap', label: 'ArgenProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:argenprop.com ${q}`)}` },
+      { id: 'site_ml', label: 'MercadoLibre (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:inmuebles.mercadolibre.com.ar ${q}`)}` },
+      { id: 'site_rx', label: 'Remax (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:remax.com.ar ${q}`)}` },
+      { id: 'site_c21', label: 'Century 21 (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:century21.com.ar ${q}`)}` },
+      { id: 'mercadounico', label: 'MercadoUnico', url: `https://www.google.com/search?q=${encodeURIComponent(`mercadounico inmobiliaria santa fe capital ${q}`)}` },
+      { id: 'inmo_sf', label: 'Inmobiliarias Santa Fe', url: `https://www.google.com/search?q=${encodeURIComponent(`inmobiliarias en santa fe capital ${tipo}`)}` },
+    ]
   }
 
   const toggleSeleccion = (key: string) => {
@@ -405,13 +662,33 @@ export default function BusquedasPage() {
     })
   }
 
+  const seleccionarTodasPropiedades = () => {
+    const matches = Array.isArray(analisisResultado?.data?.matches) ? analisisResultado.data.matches : []
+    const next = new Set<string>()
+    matches.forEach((_: unknown, idx: number) => next.add(`match:${idx}`))
+    setSeleccionadas(next)
+  }
+
+  const limpiarSeleccionPropiedades = () => {
+    setSeleccionadas(new Set())
+  }
+
   const guardarBusqueda = () => {
     if (!analisisResultado?.clienteId) return
     const items = Array.from(seleccionadas).map((k) => {
       const [tipo, idx] = k.split(':')
       const i = parseInt(idx, 10)
-      if (tipo === 'web' && analisisResultado?.data?.webMatches?.[i]) return { tipo: 'web', item: analisisResultado.data.webMatches[i] }
-      if (tipo === 'match' && analisisResultado?.data?.matches?.[i]) return { tipo: 'match', item: analisisResultado.data.matches[i] }
+      if (tipo === 'match' && analisisResultado?.data?.matches?.[i]) {
+        return { tipo: 'match', item: analisisResultado.data.matches[i] }
+      }
+      if (tipo === 'web' && analisisResultado?.data?.webMatches?.[i]) {
+        const w = analisisResultado.data.webMatches[i]
+        return { tipo: 'externo', item: { url: w.url, titulo: w.titulo || w.sitio || 'Link sugerido' } }
+      }
+      if (tipo === 'scraped' && analisisResultado?.data?.scrapedItems?.[i]) {
+        const s = analisisResultado.data.scrapedItems[i]
+        return { tipo: 'externo', item: { url: s.url, titulo: s.titulo || s.sitio || 'Portal' } }
+      }
       return null
     }).filter(Boolean)
     if (linkSeleccionado) {
@@ -462,14 +739,60 @@ export default function BusquedasPage() {
       setLinkSeleccionado(null)
       setLinkExterno('')
       setLinkExternoTitulo('')
+      setFiltrosPortales({
+        moneda: '',
+        precioDesde: '',
+        precioHasta: '',
+        dormitoriosMin: '',
+        ambientesMin: '',
+      })
+      setAplicandoFiltrosPortales(false)
     } catch (e: any) {
-      setAnalisisError(e?.message || 'Error de conexión')
+      setAnalisisError(e?.message || 'Error de conexion')
     } finally {
       setAnalizandoId(null)
     }
   }
 
   // Asegurarse de que busquedas sea un array antes de filtrar
+  const reanalizarPortalesConFiltros = async (resetear = false) => {
+    if (!analisisResultado?.busquedaId) return
+    const b = busquedas.find((it) => it.id === analisisResultado.busquedaId)
+    if (!b) return
+
+    setAplicandoFiltrosPortales(true)
+    setAnalisisError(null)
+    try {
+      const mensaje = buildMensajeFromBusqueda(b)
+      const filtros = resetear
+        ? { moneda: '', precioDesde: '', precioHasta: '', dormitoriosMin: '', ambientesMin: '' }
+        : filtrosPortales
+
+      const res = await fetch('/api/parsear-busqueda', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mensaje, guardar: false, clienteId: null, filtrosPortales: filtros }),
+      })
+
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setAnalisisError(data?.error || 'Error al actualizar portales')
+        return
+      }
+
+      setAnalisisResultado((prev: any) => ({
+        ...prev,
+        data,
+      }))
+      setSeleccionadas(new Set())
+      setLinkSeleccionado(null)
+    } catch (e: any) {
+      setAnalisisError(e?.message || 'Error de conexion')
+    } finally {
+      setAplicandoFiltrosPortales(false)
+    }
+  }
+
   const filtrados = Array.isArray(busquedas) ? busquedas.filter((b) => {
     // Validar que b tenga la estructura esperada
     if (!b || !b.cliente || !b.cliente.nombreCompleto) return false
@@ -487,22 +810,96 @@ export default function BusquedasPage() {
 
   if (loading) return <div className="text-center py-8">Cargando...</div>
 
+  const propiedadesSeleccionadas = Array.from(seleccionadas).filter((item) => item.startsWith('match:')).length
+  const externasSeleccionadas = Array.from(seleccionadas).filter((item) => item.startsWith('web:') || item.startsWith('scraped:')).length
+  const totalSeleccionadas = propiedadesSeleccionadas + externasSeleccionadas + (linkSeleccionado ? 1 : 0)
+  const scrapedItems = Array.isArray(analisisResultado?.data?.scrapedItems) ? analisisResultado.data.scrapedItems : []
+  const scrapedItemsFiltrados = scrapedItems.map((item: any, idx: number) => ({ item, idx }))
+  const portalSearchLinks = getPortalSearchLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
+  const analisisExtraLinks = getAnalisisExtraLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
+  const inmoMercadoUnicoUrl = inmoMercadoUnico
+    ? `https://www.google.com/search?q=${encodeURIComponent(`site:mercado-unico.com \"${inmoMercadoUnico}\" santa fe ver propiedades`)}` 
+    : null
+  const inmoSitioOficialUrl = inmoMercadoUnico ? getSitioOficialInmo(inmoMercadoUnico) : null
+
+  const tableroAgentes = currentUser?.rol === 'admin'
+    ? Object.values(
+        filtrados.reduce((acc, b) => {
+          const agenteNombre = getAgenteNombre(b)
+          if (!acc[agenteNombre]) {
+            acc[agenteNombre] = { agente: agenteNombre, total: 0, activas: 0, visitas: 0, cerradas: 0 }
+          }
+          acc[agenteNombre].total++
+          if (b.estado !== 'CERRADO' && b.estado !== 'PERDIDO') acc[agenteNombre].activas++
+          if (b.estado === 'VISITA') acc[agenteNombre].visitas++
+          if (b.estado === 'CERRADO') acc[agenteNombre].cerradas++
+          return acc
+        }, {} as Record<string, { agente: string; total: number; activas: number; visitas: number; cerradas: number }>)
+      )
+    : []
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Búsquedas</h1>
-        <Button
-          onClick={() => setMostrarForm(!mostrarForm)}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          + Nueva Búsqueda
-        </Button>
+        <h1 className="text-3xl font-bold text-slate-900">Busquedas</h1>
+        {currentUser?.rol !== 'admin' && (
+          <Button
+            onClick={() => setMostrarForm(!mostrarForm)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            + Nueva Busqueda
+          </Button>
+        )}
       </div>
+      <Card className="border-slate-200 bg-slate-50">
+        <CardContent className="pt-4">
+          <div className="text-sm text-slate-700">
+            Flujo recomendado: `1)` crear/seleccionar busqueda, `2)` analizar portales + CRM, `3)` seleccionar opciones, `4)` guardar en Gestion del Cliente para seguimiento.
+          </div>
+        </CardContent>
+      </Card>
+
+      {currentUser?.rol === 'admin' && (
+        <Card className="border-sky-200 bg-sky-50">
+          <CardHeader>
+            <CardTitle>Tablero de Agentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-sky-200 text-slate-700">
+                    <th className="text-left py-2 pr-3">Agente</th>
+                    <th className="text-left py-2 pr-3">Total</th>
+                    <th className="text-left py-2 pr-3">Activas</th>
+                    <th className="text-left py-2 pr-3">En visita</th>
+                    <th className="text-left py-2 pr-3">Cerradas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableroAgentes.map((row) => (
+                    <tr key={row.agente} className="border-b border-sky-100">
+                      <td className="py-2 pr-3 font-medium">{row.agente}</td>
+                      <td className="py-2 pr-3">{row.total}</td>
+                      <td className="py-2 pr-3">{row.activas}</td>
+                      <td className="py-2 pr-3">{row.visitas}</td>
+                      <td className="py-2 pr-3">{row.cerradas}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {mostrarForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Crear Nueva Búsqueda</CardTitle>
+            <CardTitle>Crear Nueva Busqueda</CardTitle>
+            <p className="text-sm text-slate-600">
+              Completa los datos base del requerimiento del cliente. Luego usa "Analizar" para buscar oportunidades.
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -541,7 +938,7 @@ export default function BusquedasPage() {
                   <option value="ACTIVA">Activa</option>
                   <option value="PERSONALIZADA">Personalizada</option>
                   <option value="CALIFICADA_EFECTIVO">Calificada (Efectivo)</option>
-                  <option value="CALIFICADA_CREDITO">Calificada (Crédito)</option>
+                  <option value="CALIFICADA_CREDITO">Calificada (Credito)</option>
                 </select>
               </div>
 
@@ -606,7 +1003,7 @@ export default function BusquedasPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Dormitorios Mínimo
+                    Dormitorios Minimo
                   </label>
                   <Input
                     type="number"
@@ -703,7 +1100,7 @@ export default function BusquedasPage() {
       <div className="flex gap-4">
         <Input
           type="text"
-          placeholder="Buscar por cliente..."
+          placeholder="Buscar por cliente (nombre completo)..."
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           className="max-w-md"
@@ -735,6 +1132,9 @@ export default function BusquedasPage() {
           </select>
         )}
       </div>
+      <p className="text-xs text-slate-500">
+        Usa estos filtros para encontrar rapido una busqueda y abrir su analisis o la gestion del cliente.
+      </p>
 
       {/* Tabla */}
       <Card>
@@ -755,7 +1155,7 @@ export default function BusquedasPage() {
               {filtrados.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={currentUser?.rol === 'admin' ? 7 : 6} className="text-center py-8">
-                    No hay búsquedas
+                    No hay busquedas
                   </TableCell>
                 </TableRow>
               ) : (
@@ -784,15 +1184,17 @@ export default function BusquedasPage() {
                     )}
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => analizarBusqueda(busqueda)}
-                          className="h-8 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
-                          disabled={analizandoId === busqueda.id}
-                        >
-                          {analizandoId === busqueda.id ? 'Analizando...' : 'Analizar'}
-                        </Button>
+                        {currentUser?.rol !== 'admin' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => analizarBusqueda(busqueda)}
+                            className="h-8 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
+                            disabled={analizandoId === busqueda.id}
+                          >
+                            {analizandoId === busqueda.id ? 'Analizando...' : 'Analizar'}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -814,7 +1216,10 @@ export default function BusquedasPage() {
       {(analisisError || analisisResultado) && (
         <Card>
           <CardHeader>
-            <CardTitle>Resultado del análisis</CardTitle>
+            <CardTitle>Resultado del analisis</CardTitle>
+            <p className="text-sm text-slate-600">
+              Aqui ves resultados web + CRM. Marca checks en propiedades o links y guarda la seleccion en Gestion del Cliente.
+            </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {analisisError && (
@@ -823,8 +1228,13 @@ export default function BusquedasPage() {
             {analisisResultado && (
               <>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-                  Análisis completado.
+                  Analisis completado.
                 </div>
+                {analisisResultado?.data?.portalStats && (
+                  <div className="text-xs text-slate-600">
+                    Portales: ZP {analisisResultado.data.portalStats.zonaprop || 0} Â· AP {analisisResultado.data.portalStats.argenprop || 0} Â· ML {analisisResultado.data.portalStats.mercadolibre || 0} Â· RX {analisisResultado.data.portalStats.remax || 0} Â· BI {analisisResultado.data.portalStats.buscainmueble || 0}
+                  </div>
+                )}
 
                 <div className="flex gap-2 flex-wrap">
                   <Button
@@ -837,62 +1247,187 @@ export default function BusquedasPage() {
                       window.location.href = `/gestion?clienteId=${clienteId}`
                     }}
                   >
-                    Ir a Gestión del Cliente
+                    Ir a Gestion del Cliente
                   </Button>
-                  {(seleccionadas.size > 0 || linkSeleccionado) && (
+                  {(totalSeleccionadas > 0) && (
                     <Button
                       type="button"
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-emerald-600 hover:bg-emerald-700"
                       onClick={guardarBusqueda}
                     >
-                      Guardar búsqueda y pasar a Gestión del Cliente
+                      Guardar en Gestion del Cliente ({totalSeleccionadas})
                     </Button>
                   )}
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Link externo</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Input
-                      placeholder="Título del link..."
-                      value={linkExternoTitulo}
-                      onChange={(e) => setLinkExternoTitulo(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Pegá un link de afuera..."
-                      value={linkExterno}
-                      onChange={(e) => setLinkExterno(e.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!linkExterno.trim()}
-                      onClick={() => setLinkSeleccionado(linkExterno.trim())}
-                    >
-                      Seleccionar link
-                    </Button>
-                    {linkSeleccionado && (
-                      <div className="text-sm text-green-700">
-                        ✅ Link seleccionado: {linkExternoTitulo || 'Sin título'} - {linkSeleccionado}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {Array.isArray(analisisResultado?.data?.scrapedItems) && analisisResultado.data.scrapedItems.length > 0 && (
+                {scrapedItems.length > 0 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Oportunidades en Portales ({analisisResultado.data.scrapedItems.length})</CardTitle>
+                      <CardTitle>Oportunidades en Portales ({scrapedItemsFiltrados.length})</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      <div className="text-xs text-slate-500">
+                        Paso 1: abre portales con filtros. Paso 2: compara fuentes. Paso 3: usa inmobiliarias de Santa Fe.
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                        <div className="text-sm font-semibold text-slate-800 mb-2">
+                          Paso 1 · Portales principales
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {portalSearchLinks.map((link: any) => (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              {link.label}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700">Paso 2 · Fuentes complementarias</div>
+                          <div className="text-xs text-slate-500">No reemplaza al CRM: sirve para ampliar investigacion.</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {analisisExtraLinks.map((link: any) => (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              {link.label}
+                            </a>
+                          ))}
+                        </div>
+                        <div className="border-t border-slate-200 pt-3">
+                          <div className="text-xs font-semibold text-slate-700 mb-2">Paso 3 · Inmobiliarias Santa Fe</div>
+                          <div className="text-xs text-slate-500 mb-2">Elegi una inmobiliaria para abrir directorio, busqueda o sitio oficial.</div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                          <select
+                            value={inmoMercadoUnico}
+                            onChange={(e) => setInmoMercadoUnico(e.target.value)}
+                            className="px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
+                          >
+                            <option value="">Elegir inmobiliaria (Mercado Unico)</option>
+                            {MERCADO_UNICO_INMOBILIARIAS.map((inmo) => (
+                              <option key={inmo} value={inmo}>
+                                {inmo}
+                                {hasSitioOficialInmo(inmo) ? ' (sitio oficial)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <a
+                            href="https://www.mercado-unico.com/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            Abrir directorio MU
+                          </a>
+                          <a
+                            href={inmoMercadoUnicoUrl || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-disabled={!inmoMercadoUnicoUrl}
+                            className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
+                              inmoMercadoUnicoUrl
+                                ? 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                                : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                            }`}
+                          >
+                            Buscar en directorio
+                          </a>
+                          <a
+                            href={inmoSitioOficialUrl || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-disabled={!inmoSitioOficialUrl}
+                            className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
+                              inmoSitioOficialUrl
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                            }`}
+                          >
+                            Sitio oficial
+                          </a>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                        <select
+                          value={filtrosPortales.moneda}
+                          onChange={(e) => setFiltrosPortales((p) => ({ ...p, moneda: e.target.value }))}
+                          className="px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
+                        >
+                          <option value="">Moneda</option>
+                          <option value="USD">USD</option>
+                          <option value="ARS">ARS</option>
+                        </select>
+                        <Input
+                          type="number"
+                          placeholder="Desde"
+                          value={filtrosPortales.precioDesde}
+                          onChange={(e) => setFiltrosPortales((p) => ({ ...p, precioDesde: e.target.value }))}
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Hasta"
+                          value={filtrosPortales.precioHasta}
+                          onChange={(e) => setFiltrosPortales((p) => ({ ...p, precioHasta: e.target.value }))}
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Dorm min"
+                          value={filtrosPortales.dormitoriosMin}
+                          onChange={(e) => setFiltrosPortales((p) => ({ ...p, dormitoriosMin: e.target.value }))}
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Amb min"
+                          value={filtrosPortales.ambientesMin}
+                          onChange={(e) => setFiltrosPortales((p) => ({ ...p, ambientesMin: e.target.value }))}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            className="flex-1"
+                            onClick={() => reanalizarPortalesConFiltros(false)}
+                            disabled={aplicandoFiltrosPortales}
+                          >
+                            {aplicandoFiltrosPortales ? 'Buscando...' : 'Ver resultados'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setFiltrosPortales({
+                                moneda: '',
+                                precioDesde: '',
+                                precioHasta: '',
+                                dormitoriosMin: '',
+                                ambientesMin: '',
+                              })
+                              reanalizarPortalesConFiltros(true)
+                            }}
+                            disabled={aplicandoFiltrosPortales}
+                          >
+                            Limpiar
+                          </Button>
+                        </div>
+                      </div>
                       <div className="text-sm text-slate-600 mb-2">
-                        (Para investigación, no es necesario seleccionar)
+                        Estos filtros rehacen la busqueda en portales (no solo visual).
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {analisisResultado.data.scrapedItems.map((item: any, idx: number) => (
-                          <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
+                        {scrapedItemsFiltrados.map(({ item, idx }: any, pos: number) => (
+                          <div key={`${item?.url || pos}`} className="flex gap-3 p-3 bg-white border rounded-lg">
                             {item?.img ? (
                               <img
                                 src={item.img}
@@ -916,35 +1451,88 @@ export default function BusquedasPage() {
                               <div className="text-xs text-slate-600 line-clamp-1">
                                 {item?.ubicacion || '-'}
                               </div>
-                              <div className="flex gap-2 mt-2">
+                              <div className="flex gap-2 mt-2 items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSeleccion(`scraped:${idx}`)}
+                                  className={`inline-flex h-7 items-center rounded-md border px-2 text-xs font-semibold ${
+                                    seleccionadas.has(`scraped:${idx}`)
+                                      ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                      : 'border-slate-300 bg-white text-slate-700'
+                                  }`}
+                                >
+                                  {seleccionadas.has(`scraped:${idx}`) ? 'Seleccionado' : 'Seleccionar'}
+                                </button>
                                 {item?.url && (
                                   <a
                                     href={item.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-blue-600 hover:underline text-sm"
+                                    className="inline-flex items-center rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                                   >
                                     Ver
                                   </a>
                                 )}
                                 <div className="text-xs text-slate-500">
-                                  📍 {item?.url || '-'}
+                                  URL: {item?.url || '-'}
                                 </div>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
+                      {scrapedItemsFiltrados.length === 0 && (
+                        <div className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded p-3">
+                          No hay resultados con esos filtros. Proba ampliar el rango y tocar Ver resultados.
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {Array.isArray(analisisResultado?.data?.webMatches) && analisisResultado.data.webMatches.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Link externo manual</CardTitle>
+                    <p className="text-sm text-slate-600">
+                      Si encontraste una opcion fuera del CRM, pegala aqui para incluirla en la gestion del cliente.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Input
+                      placeholder="Titulo visible (ej: Depto 2D Candioti)"
+                      value={linkExternoTitulo}
+                      onChange={(e) => setLinkExternoTitulo(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Pega URL completa (https://...)"
+                      value={linkExterno}
+                      onChange={(e) => setLinkExterno(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!linkExterno.trim()}
+                      onClick={() => setLinkSeleccionado(linkExterno.trim())}
+                    >
+                      Seleccionar link
+                    </Button>
+                    {linkSeleccionado && (
+                      <div className="text-sm text-green-700">
+                        OK Link seleccionado: {linkExternoTitulo || 'Sin titulo'} - {linkSeleccionado}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {false && Array.isArray(analisisResultado?.data?.webMatches) && analisisResultado.data.webMatches.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle>Links sugeridos ({analisisResultado.data.webMatches.length})</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
+                      <div className="text-sm text-slate-600">
+                        Selecciona links sugeridos para enviarlos a Gestion del Cliente.
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {analisisResultado.data.webMatches.map((w: any, idx: number) => (
                           <div key={`${w?.url || idx}`} className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:shadow-sm">
@@ -952,9 +1540,11 @@ export default function BusquedasPage() {
                               type="checkbox"
                               checked={seleccionadas.has(`web:${idx}`)}
                               onChange={() => toggleSeleccion(`web:${idx}`)}
-                              className="mt-1"
+                              className="mt-0.5"
                             />
-                            <div className="text-2xl">{w?.icon || '🌐'}</div>
+                            <span className="inline-flex h-5 min-w-8 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-600">
+                              {getPortalBadge(w?.sitio)}
+                            </span>
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-semibold text-slate-900">
                                 {w?.sitio || 'Link'}
@@ -969,7 +1559,7 @@ export default function BusquedasPage() {
                                   href={w.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-blue-600 hover:underline text-sm"
+                                  className="inline-flex items-center rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
                                 >
                                   Ver
                                 </a>
@@ -985,19 +1575,41 @@ export default function BusquedasPage() {
                 {Array.isArray(analisisResultado?.data?.matches) && analisisResultado.data.matches.length > 0 && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Propiedades del CRM ({analisisResultado.data.matches.length})</CardTitle>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardTitle>Propiedades del CRM ({analisisResultado.data.matches.length})</CardTitle>
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={seleccionarTodasPropiedades}>
+                            Seleccionar todas
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={limpiarSeleccionPropiedades}>
+                            Limpiar
+                          </Button>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <div className="space-y-2">
                         {analisisResultado.data.matches.map((m: any, idx: number) => (
-                          <div key={`${m?.id || idx}`} className="p-3 bg-white border rounded-lg">
+                          <button
+                            key={`${m?.id || idx}`}
+                            type="button"
+                            onClick={() => toggleSeleccion(`match:${idx}`)}
+                            className={`w-full p-3 rounded-lg border text-left transition ${
+                              seleccionadas.has(`match:${idx}`)
+                                ? 'border-emerald-400 bg-emerald-50 shadow-sm'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
                             <div className="flex items-start justify-between gap-3">
-                              <input
-                                type="checkbox"
-                                checked={seleccionadas.has(`match:${idx}`)}
-                                onChange={() => toggleSeleccion(`match:${idx}`)}
-                                className="mt-1"
-                              />
+                              <span
+                                className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                                  seleccionadas.has(`match:${idx}`)
+                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-slate-300 bg-white text-transparent'
+                                }`}
+                              >
+                                OK
+                              </span>
                               <div className="min-w-0 flex-1">
                                 <div className="text-sm font-semibold text-slate-900 line-clamp-1">
                                   {m?.titulo || m?.propiedad?.titulo || 'Propiedad'}
@@ -1012,7 +1624,7 @@ export default function BusquedasPage() {
 
                               </div>
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </CardContent>
@@ -1042,3 +1654,7 @@ export default function BusquedasPage() {
     </div>
   )
 }
+
+
+
+

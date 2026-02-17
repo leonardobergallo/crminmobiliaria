@@ -633,6 +633,13 @@ function GestionClienteContent() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-slate-900">📱 Gestión de Cliente</h1>
+      <Card className="border-slate-200 bg-slate-50">
+        <CardContent className="pt-4">
+          <div className="text-sm text-slate-700">
+            Flujo sugerido: `1)` elegir cliente, `2)` revisar/crear busqueda, `3)` enviar sugerencias o links, `4)` registrar comunicaciones y respuestas.
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar: Lista de Clientes */}
@@ -640,6 +647,9 @@ function GestionClienteContent() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Clientes</CardTitle>
+              <p className="text-sm text-slate-600">
+                Selecciona un cliente para abrir su historial completo.
+              </p>
               <div className="flex gap-2">
                 {clientesAEliminar.size > 0 && (
                   <Button 
@@ -851,6 +861,9 @@ function GestionClienteContent() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-sm text-slate-600">
+                      Desde aqui podes crear nuevas busquedas y ver el historial con sus propiedades sugeridas.
+                    </p>
                   </CardHeader>
                   <CardContent>
                     {/* Form nueva búsqueda */}
@@ -918,10 +931,10 @@ function GestionClienteContent() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Ubicación Preferida</label>
-                            <Input
+                          <Input
                               value={formBusqueda.ubicacionPreferida}
                               onChange={(e) => setFormBusqueda({ ...formBusqueda, ubicacionPreferida: e.target.value })}
-                              placeholder="Zona/Barrio"
+                              placeholder="Zona, barrio o ciudad preferida"
                             />
                           </div>
                           <div>
@@ -1160,6 +1173,9 @@ function GestionClienteContent() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-sm text-slate-600">
+                      Envia propiedades al cliente y registra su interes. Tambien podes sumar links externos manuales.
+                    </p>
                     {sugerencias?.busqueda && (
                       <p className="text-sm text-slate-600">
                         Búsqueda: {sugerencias.busqueda.tipoPropiedad || 'Cualquier'} | 
@@ -1177,7 +1193,7 @@ function GestionClienteContent() {
                           <Input
                             value={formEnvio.urlExterna}
                             onChange={(e) => setFormEnvio({ ...formEnvio, urlExterna: e.target.value })}
-                            placeholder="https://www.argenprop.com/..."
+                            placeholder="URL completa del portal o inmobiliaria (https://...)"
                             required
                           />
                         </div>
@@ -1186,7 +1202,7 @@ function GestionClienteContent() {
                           <Input
                             value={formEnvio.tituloExterno}
                             onChange={(e) => setFormEnvio({ ...formEnvio, tituloExterno: e.target.value })}
-                            placeholder="Depto 3 amb en Palermo"
+                            placeholder="Titulo corto para identificar el link"
                           />
                         </div>
                         <div className="flex gap-2">
@@ -1276,6 +1292,9 @@ function GestionClienteContent() {
                         )}
                       </div>
                     </div>
+                    <p className="text-sm text-slate-600">
+                      Cambia la respuesta del cliente para llevar el seguimiento comercial sin salir de esta vista.
+                    </p>
                   </CardHeader>
                   <CardContent>
                     {envios.length === 0 ? (
@@ -1377,6 +1396,9 @@ function GestionClienteContent() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-sm text-slate-600">
+                      Registra llamadas, WhatsApp y resultados para no perder contexto entre agentes.
+                    </p>
                   </CardHeader>
                   <CardContent>
                     {/* Form nueva comunicación */}
@@ -1413,7 +1435,7 @@ function GestionClienteContent() {
                           <textarea
                             value={formCom.resumen}
                             onChange={(e) => setFormCom({ ...formCom, resumen: e.target.value })}
-                            placeholder="¿De qué hablaron?"
+                            placeholder="Resumen claro: que pidio el cliente, que se acordo y proximo paso"
                             className="w-full px-3 py-2 border rounded-md min-h-[80px]"
                             required
                           />
@@ -1522,7 +1544,6 @@ export default function GestionClientePage() {
     </Suspense>
   )
 }
-
 
 
 
