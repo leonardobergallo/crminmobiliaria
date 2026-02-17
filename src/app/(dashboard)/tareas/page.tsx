@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,13 +24,40 @@ interface Tarea {
   createdAt: string
 }
 
+interface CurrentUser {
+  id: string
+  nombre: string
+  rol: string
+}
+
+interface InboxConsulta {
+  id: string
+  estado: string
+  origen: string
+  createdAt: string
+  tipoPropiedad?: string | null
+  presupuestoTexto?: string | null
+  ubicacionPreferida?: string | null
+  cliente?: {
+    id: string
+    nombreCompleto: string
+    usuario?: { id: string; nombre: string } | null
+  } | null
+  usuario?: { id: string; nombre: string } | null
+}
+
 const PRIORIDADES = ['BAJA', 'MEDIA', 'ALTA']
 const TIPOS_TAREA = ['GENERAL', 'VISITA', 'LLAMADA']
 
 export default function TareasPage() {
+  const router = useRouter()
   const [tareas, setTareas] = useState<Tarea[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [inboxConsultas, setInboxConsultas] = useState<InboxConsulta[]>([])
+  const [creatingSeguimientoId, setCreatingSeguimientoId] = useState<string | null>(null)
+  const [closingConsultaId, setClosingConsultaId] = useState<string | null>(null)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState<string>('PENDIENTE')
   const [filtroTipo, setFiltroTipo] = useState<string>('')
@@ -51,10 +79,62 @@ export default function TareasPage() {
   })
 
   useEffect(() => {
-    fetchTareas()
+    fetchCurrentUser()
     fetchClientes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    fetchTareas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroEstado, filtroTipo, filtroRango])
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (!response.ok) {
+        if (response.status === 401) router.push('/login')
+        return
+      }
+
+      const data = await response.json()
+      const user = data.user as CurrentUser
+      setCurrentUser(user)
+
+      if (user?.rol === 'superadmin') {
+        await fetchInboxConsultas()
+      }
+    } catch (error) {
+      console.error('Error:', error)
+    }
+  }
+
+  const fetchInboxConsultas = async () => {
+    try {
+      const response = await fetch('/api/busquedas')
+      if (!response.ok) {
+        setInboxConsultas([])
+        return
+      }
+
+      const data = await response.json()
+      if (!Array.isArray(data)) {
+        setInboxConsultas([])
+        return
+      }
+
+      // Inbox operativo: prioriza consultas abiertas
+      const abiertas = data
+        .filter((b: InboxConsulta) => b.estado !== 'CERRADO' && b.estado !== 'PERDIDO')
+        .sort((a: InboxConsulta, b: InboxConsulta) => +new Date(b.createdAt) - +new Date(a.createdAt))
+        .slice(0, 30)
+
+      setInboxConsultas(abiertas)
+    } catch (error) {
+      console.error('Error:', error)
+      setInboxConsultas([])
+    }
+  }
 
   const fetchTareas = async () => {
     try {
@@ -95,6 +175,92 @@ export default function TareasPage() {
       propiedadId: '',
     })
     setEditingId(null)
+  }
+
+  const handleCrearCitaDemo = () => {
+    const manana = new Date()
+    manana.setDate(manana.getDate() + 1)
+
+    setFormData({
+      titulo: 'Cita demo: presentacion del CRM',
+      descripcion: 'Mostrar importacion, busquedas, gestion del cliente y tablero administrador.',
+      fechaVencimiento: manana.toISOString().split('T')[0],
+      prioridad: 'ALTA',
+      tipo: 'VISITA',
+      clienteId: '',
+      propiedadId: '',
+    })
+
+    setEditingId(null)
+    setMostrarForm(true)
+  }
+
+  const handleCrearSeguimientoInbox = async (consulta: InboxConsulta) => {
+    try {
+      setCreatingSeguimientoId(consulta.id)
+
+      const manana = new Date()
+      manana.setDate(manana.getDate() + 1)
+      manana.setHours(10, 0, 0, 0)
+
+      const payload = {
+        clienteId: consulta.cliente?.id || null,
+        busquedaId: consulta.id,
+        titulo: `Seguimiento consulta: ${consulta.cliente?.nombreCompleto || 'Cliente'}`,
+        descripcion: `Origen: ${consulta.origen} | Estado: ${consulta.estado} | Tipo: ${consulta.tipoPropiedad || '-'} | Presupuesto: ${consulta.presupuestoTexto || '-'}`,
+        fechaVencimiento: manana.toISOString(),
+        prioridad: 'ALTA',
+        tipo: 'LLAMADA',
+      }
+
+      const response = await fetch('/api/tareas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        alert('No se pudo crear la tarea de seguimiento.')
+        return
+      }
+
+      await fetchTareas()
+      alert('Tarea de seguimiento creada en Agenda.')
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error al crear seguimiento.')
+    } finally {
+      setCreatingSeguimientoId(null)
+    }
+  }
+
+  const handleCerrarConsultaInbox = async (consulta: InboxConsulta) => {
+    const ok = confirm(`Cerrar la consulta de ${consulta.cliente?.nombreCompleto || 'este cliente'}?`)
+    if (!ok) return
+
+    try {
+      setClosingConsultaId(consulta.id)
+
+      const response = await fetch(`/api/busquedas/${consulta.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: 'CERRADO' }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        alert(errorData?.error || 'No se pudo cerrar la consulta.')
+        return
+      }
+
+      await fetchInboxConsultas()
+      alert('Consulta cerrada correctamente.')
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error al cerrar consulta.')
+    } finally {
+      setClosingConsultaId(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -250,18 +416,87 @@ export default function TareasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">📅 Agenda Semanal</h1>
           <p className="text-slate-500 text-sm">Organiza tus visitas y seguimientos de la semana</p>
         </div>
-        <Button
-          onClick={() => { resetForm(); setMostrarForm(!mostrarForm) }}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {mostrarForm ? 'Cerrar' : '+ Nueva Actividad'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleCrearCitaDemo}
+            variant="outline"
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            + Cita Demo
+          </Button>
+          <Button
+            onClick={() => { resetForm(); setMostrarForm(!mostrarForm) }}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {mostrarForm ? 'Cerrar' : '+ Nueva Actividad'}
+          </Button>
+        </div>
       </div>
+
+      {currentUser?.rol === 'superadmin' && (
+        <Card className="border-indigo-200 bg-indigo-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-indigo-800">Inbox de Consultas (Superusuario)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {inboxConsultas.length === 0 ? (
+              <p className="text-sm text-slate-600">No hay consultas abiertas para seguimiento.</p>
+            ) : (
+              <div className="space-y-2">
+                {inboxConsultas.map((consulta) => (
+                  <div key={consulta.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {consulta.cliente?.nombreCompleto || 'Cliente sin nombre'}
+                      </p>
+                      <span className="text-xs px-2 py-1 rounded bg-slate-100">{consulta.estado}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      <span className="mr-3">Agente: {consulta.usuario?.nombre || consulta.cliente?.usuario?.nombre || 'Sin asignar'}</span>
+                      <span className="mr-3">Tipo: {consulta.tipoPropiedad || '-'}</span>
+                      <span>Presupuesto: {consulta.presupuestoTexto || '-'}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {new Date(consulta.createdAt).toLocaleString('es-AR')} - {consulta.ubicacionPreferida || 'Sin ubicacion'}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                        disabled={creatingSeguimientoId === consulta.id}
+                        onClick={() => handleCrearSeguimientoInbox(consulta)}
+                      >
+                        {creatingSeguimientoId === consulta.id ? 'Creando...' : 'Crear seguimiento'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push('/admin/tablero-busquedas')}
+                      >
+                        Abrir tablero de seguimiento
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        disabled={closingConsultaId === consulta.id}
+                        onClick={() => handleCerrarConsultaInbox(consulta)}
+                      >
+                        {closingConsultaId === consulta.id ? 'Cerrando...' : 'Cerrar consulta'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Agendar con WhatsApp (Nuevo) */}
       <Card className="border-green-200 bg-green-50/30">

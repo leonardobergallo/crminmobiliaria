@@ -100,7 +100,8 @@ export async function PATCH(
     }
 
     // Verificar permisos de edición
-    const canEdit = currentUser.rol === 'admin' || 
+    const canEdit = currentUser.rol === 'admin' ||
+                    currentUser.rol === 'superadmin' ||
                     busquedaExistente.createdBy === currentUser.id ||
                     busquedaExistente.cliente?.usuarioId === currentUser.id
 
@@ -112,7 +113,12 @@ export async function PATCH(
     }
 
     // Si se intenta cambiar el estado y no es admin, rechazar
-    if (body.estado && body.estado !== busquedaExistente.estado && currentUser.rol !== 'admin') {
+    if (
+      body.estado &&
+      body.estado !== busquedaExistente.estado &&
+      currentUser.rol !== 'admin' &&
+      currentUser.rol !== 'superadmin'
+    ) {
       return NextResponse.json(
         { error: 'Solo el administrador puede cambiar el estado de la búsqueda' },
         { status: 403 }
