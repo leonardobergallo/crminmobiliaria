@@ -204,6 +204,8 @@ function ParsearBusquedaContent() {
   const [linkExternoTitulo, setLinkExternoTitulo] = useState('')
   const [linkSeleccionado, setLinkSeleccionado] = useState<string | null>(null)
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
+  const [scrapedPage, setScrapedPage] = useState(1)
+  const SCRAPED_PAGE_SIZE = 10
 
   const getPortalBadge = (sitio?: string | null): string => {
     const s = (sitio || '').toLowerCase()
@@ -399,6 +401,19 @@ function ParsearBusquedaContent() {
     () => (inmoMercadoUnico ? getSitioOficialInmo(inmoMercadoUnico) : null),
     [inmoMercadoUnico]
   )
+  const scrapedItemsConIndice = useMemo(() => {
+    const items = Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems : []
+    return items.map((item: any, idx: number) => ({ item, idx }))
+  }, [resultado])
+  const scrapedTotalPages = Math.max(1, Math.ceil(scrapedItemsConIndice.length / SCRAPED_PAGE_SIZE))
+  const scrapedItemsPaginados = scrapedItemsConIndice.slice(
+    (scrapedPage - 1) * SCRAPED_PAGE_SIZE,
+    scrapedPage * SCRAPED_PAGE_SIZE
+  )
+
+  useEffect(() => {
+    setScrapedPage(1)
+  }, [scrapedItemsConIndice.length])
 
   const busquedaSeleccionada = useMemo(() => {
     return busquedasOrdenadas.find((b) => b.id === busquedaId) || null
@@ -841,8 +856,35 @@ function ParsearBusquedaContent() {
                     </a>
                   </div>
                 </div>
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>
+                    Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
+                    {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItemsConIndice.length)} de {scrapedItemsConIndice.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
+                      disabled={scrapedPage <= 1}
+                    >
+                      Anterior
+                    </Button>
+                    <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
+                      disabled={scrapedPage >= scrapedTotalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {resultado.scrapedItems.map((item: any, idx: number) => (
+                  {scrapedItemsPaginados.map(({ item, idx }: any) => (
                     <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
                       {item?.img ? (
                         <img

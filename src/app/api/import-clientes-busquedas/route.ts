@@ -4,6 +4,12 @@ import { prisma } from '@/lib/utils/prisma'
 import { getCurrentUser } from '@/lib/auth'
 
 type Row = Record<string, unknown>
+type PreviewAction = {
+  fila: number
+  accion: 'CREAR' | 'ACTUALIZAR' | 'OMITIR' | 'ERROR'
+  entidad: 'CLIENTE' | 'BUSQUEDA'
+  detalle: string
+}
 
 function normalizeKey(input: string): string {
   return input
@@ -84,15 +90,34 @@ export async function POST(req: NextRequest) {
     const fileName = typeof body.fileName === 'string' ? body.fileName : ''
     const fileData = typeof body.fileData === 'string' ? body.fileData : ''
     const inmobiliariaIdBody = typeof body.inmobiliariaId === 'string' ? body.inmobiliariaId : null
+    const targetUserId = typeof body.targetUserId === 'string' ? body.targetUserId : null
+    const preview = body.preview === true || body.mode === 'preview'
 
     if (!fileName || !fileData) {
       return NextResponse.json({ error: 'Archivo no proporcionado' }, { status: 400 })
     }
 
+    let targetUser: { id: string; inmobiliariaId: string | null } | null = null
+    if (targetUserId) {
+      targetUser = await prisma.usuario.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, inmobiliariaId: true },
+      })
+    }
+
     const inmobiliariaId =
       currentUser.rol === 'superadmin'
-        ? (inmobiliariaIdBody ?? currentUser.inmobiliariaId ?? null)
+        ? (inmobiliariaIdBody ?? targetUser?.inmobiliariaId ?? currentUser.inmobiliariaId ?? null)
         : (currentUser.inmobiliariaId ?? null)
+
+    if (currentUser.rol === 'superadmin' && !inmobiliariaId) {
+      return NextResponse.json(
+        { error: 'Como superadmin debes seleccionar un agente o una inmobiliaria destino antes de importar.' },
+        { status: 400 }
+      )
+    }
+
+    const ownerUserId = currentUser.rol === 'superadmin' && targetUser?.id ? targetUser.id : currentUser.id
 
     const buffer = Buffer.from(fileData, 'base64')
     const workbook = XLSX.read(buffer, { type: 'buffer' })
@@ -106,9 +131,11 @@ export async function POST(req: NextRequest) {
     let clientesCreados = 0
     let clientesActualizados = 0
     let busquedasCreadas = 0
+    let busquedasActualizadas = 0
     let busquedasDuplicadas = 0
     let filasOmitidas = 0
     const errors: string[] = []
+    const acciones: PreviewAction[] = []
 
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index]
@@ -127,6 +154,12 @@ export async function POST(req: NextRequest) {
 
         if (!nombreCompleto) {
           filasOmitidas++
+          acciones.push({
+            fila: rowNumber,
+            accion: 'OMITIR',
+            entidad: 'CLIENTE',
+            detalle: 'Falta nombre de cliente',
+          })
           errors.push(`Fila ${rowNumber}: falta nombre de cliente.`)
           continue
         }
@@ -143,17 +176,35 @@ export async function POST(req: NextRequest) {
         })
 
         if (!cliente) {
-          cliente = await prisma.cliente.create({
-            data: {
+          if (!preview) {
+            cliente = await prisma.cliente.create({
+              data: {
+                nombreCompleto,
+                telefono,
+                email,
+                notas: notasCliente,
+                usuarioId: ownerUserId,
+                inmobiliariaId,
+              },
+            })
+          } else {
+            cliente = {
+              id: `preview-cliente-${rowNumber}`,
               nombreCompleto,
               telefono,
               email,
               notas: notasCliente,
-              usuarioId: currentUser.id,
+              usuarioId: ownerUserId,
               inmobiliariaId,
-            },
-          })
+            } as typeof cliente
+          }
           clientesCreados++
+          acciones.push({
+            fila: rowNumber,
+            accion: 'CREAR',
+            entidad: 'CLIENTE',
+            detalle: nombreCompleto,
+          })
         } else {
           const shouldUpdate =
             (telefono && telefono !== cliente.telefono) ||
@@ -161,15 +212,23 @@ export async function POST(req: NextRequest) {
             (notasCliente && notasCliente !== cliente.notas)
 
           if (shouldUpdate) {
-            cliente = await prisma.cliente.update({
-              where: { id: cliente.id },
-              data: {
-                telefono: telefono ?? cliente.telefono,
-                email: email ?? cliente.email,
-                notas: notasCliente ?? cliente.notas,
-              },
-            })
+            if (!preview) {
+              cliente = await prisma.cliente.update({
+                where: { id: cliente.id },
+                data: {
+                  telefono: telefono ?? cliente.telefono,
+                  email: email ?? cliente.email,
+                  notas: notasCliente ?? cliente.notas,
+                },
+              })
+            }
             clientesActualizados++
+            acciones.push({
+              fila: rowNumber,
+              accion: 'ACTUALIZAR',
+              entidad: 'CLIENTE',
+              detalle: nombreCompleto,
+            })
           }
         }
 
@@ -198,48 +257,115 @@ export async function POST(req: NextRequest) {
             tipoPropiedad,
             ubicacionPreferida,
             presupuestoTexto,
-            observaciones,
           },
-          select: { id: true },
+          select: {
+            id: true,
+            moneda: true,
+            presupuestoValor: true,
+            dormitoriosMin: true,
+            cochera: true,
+            finalidad: true,
+            estado: true,
+            observaciones: true,
+            planillaRef: true,
+          },
         })
 
         if (existeBusqueda) {
-          busquedasDuplicadas++
+          const shouldUpdateBusqueda =
+            (moneda && moneda !== existeBusqueda.moneda) ||
+            (presupuestoValor !== null && presupuestoValor !== existeBusqueda.presupuestoValor) ||
+            (dormitoriosMin !== null && dormitoriosMin !== existeBusqueda.dormitoriosMin) ||
+            (cochera && cochera !== existeBusqueda.cochera) ||
+            (finalidad && finalidad !== existeBusqueda.finalidad) ||
+            (estado && estado !== existeBusqueda.estado) ||
+            (observaciones && observaciones !== existeBusqueda.observaciones) ||
+            (planillaRef && planillaRef !== existeBusqueda.planillaRef)
+
+          if (shouldUpdateBusqueda) {
+            if (!preview) {
+              await prisma.busqueda.update({
+                where: { id: existeBusqueda.id },
+                data: {
+                  moneda: moneda ?? existeBusqueda.moneda,
+                  presupuestoValor: presupuestoValor ?? existeBusqueda.presupuestoValor,
+                  dormitoriosMin: dormitoriosMin ?? existeBusqueda.dormitoriosMin,
+                  cochera: cochera ?? existeBusqueda.cochera,
+                  finalidad: finalidad ?? existeBusqueda.finalidad,
+                  estado: estado ?? existeBusqueda.estado,
+                  observaciones: observaciones ?? existeBusqueda.observaciones,
+                  planillaRef: planillaRef ?? existeBusqueda.planillaRef,
+                },
+              })
+            }
+            busquedasActualizadas++
+            acciones.push({
+              fila: rowNumber,
+              accion: 'ACTUALIZAR',
+              entidad: 'BUSQUEDA',
+              detalle: `${nombreCompleto} · ${tipoPropiedad || 'SIN TIPO'}`,
+            })
+          } else {
+            busquedasDuplicadas++
+            acciones.push({
+              fila: rowNumber,
+              accion: 'OMITIR',
+              entidad: 'BUSQUEDA',
+              detalle: `${nombreCompleto} · duplicada`,
+            })
+          }
           continue
         }
 
-        await prisma.busqueda.create({
-          data: {
-            clienteId: cliente.id,
-            origen,
-            presupuestoTexto,
-            presupuestoValor,
-            moneda,
-            tipoPropiedad,
-            ubicacionPreferida,
-            dormitoriosMin,
-            cochera,
-            finalidad,
-            estado,
-            observaciones,
-            planillaRef,
-            createdBy: currentUser.id,
-          },
-        })
+        if (!preview) {
+          await prisma.busqueda.create({
+            data: {
+              clienteId: cliente.id,
+              origen,
+              presupuestoTexto,
+              presupuestoValor,
+              moneda,
+              tipoPropiedad,
+              ubicacionPreferida,
+              dormitoriosMin,
+              cochera,
+              finalidad,
+              estado,
+              observaciones,
+              planillaRef,
+              createdBy: ownerUserId,
+            },
+          })
+        }
         busquedasCreadas++
+        acciones.push({
+          fila: rowNumber,
+          accion: 'CREAR',
+          entidad: 'BUSQUEDA',
+          detalle: `${nombreCompleto} · ${tipoPropiedad || 'SIN TIPO'}`,
+        })
       } catch (rowError) {
+        acciones.push({
+          fila: rowNumber,
+          accion: 'ERROR',
+          entidad: 'BUSQUEDA',
+          detalle: (rowError as Error).message,
+        })
         errors.push(`Fila ${rowNumber}: ${(rowError as Error).message}`)
       }
     }
 
     return NextResponse.json({
       success: true,
+      mode: preview ? 'preview' : 'import',
       totalFilas: rows.length,
       clientesCreados,
       clientesActualizados,
       busquedasCreadas,
+      busquedasActualizadas,
       busquedasDuplicadas,
       filasOmitidas,
+      acciones: acciones.slice(0, 40),
       errors: errors.length > 0 ? errors.slice(0, 50) : undefined,
     })
   } catch (error) {

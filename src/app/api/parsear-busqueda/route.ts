@@ -30,6 +30,18 @@ type FiltrosPortalesInput = {
   ambientesMin?: string | number
 }
 
+function getEnvPositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name]
+  const parsed = Number.parseInt(String(raw || ''), 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback
+  return parsed
+}
+
+const MAX_DB_MATCHES = getEnvPositiveInt('MAX_DB_MATCHES', 100)
+const SCRAPED_MAX_TOTAL = getEnvPositiveInt('SCRAPED_MAX_TOTAL', 200)
+const SCRAPED_MAX_PER_PORTAL = getEnvPositiveInt('SCRAPED_MAX_PER_PORTAL', 80)
+const SCRAPER_PORTAL_HARD_LIMIT = getEnvPositiveInt('SCRAPER_PORTAL_HARD_LIMIT', 80)
+
 const ZONAS_SANTA_FE_DEFAULT = [
   'Santa Fe Capital',
   'Santo Tome',
@@ -419,7 +431,11 @@ export async function POST(request: NextRequest) {
     const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
     const uniqueScraped = Array.from(new Map(allScraped.map(item => [item.url, item])).values())
       .filter((item: any) => esItemDeSantaFe(item))
-    const scrapedDiversificado = diversificarPorPortal(uniqueScraped, 8)
+    const scrapedDiversificado = diversificarPorPortal(
+      uniqueScraped,
+      SCRAPED_MAX_TOTAL,
+      SCRAPED_MAX_PER_PORTAL
+    )
     const portalStats = {
       mercadolibre: mlItems.length,
       argenprop: apItems.length,
@@ -994,8 +1010,8 @@ async function encontrarMatchesEnDb(
     return true
   })
 
-  // Limitar resultados a mÃƒÂ¡ximo 15 para mostrar mÃƒÂ¡s opciones
-  return propiedadesValidadas.slice(0, 15)
+  // Limite configurable para evitar respuesta excesiva en casos extremos.
+  return propiedadesValidadas.slice(0, MAX_DB_MATCHES)
 }
 
 function esItemDeSantaFe(item: { titulo?: string; ubicacion?: string; url?: string }): boolean {
@@ -1049,7 +1065,11 @@ function esItemDeSantaFe(item: { titulo?: string; ubicacion?: string; url?: stri
   return false
 }
 
-function diversificarPorPortal(items: any[], maxTotal = 8, maxPorPortal = 1) {
+function diversificarPorPortal(
+  items: any[],
+  maxTotal = SCRAPED_MAX_TOTAL,
+  maxPorPortal = SCRAPED_MAX_PER_PORTAL
+) {
   const porPortal = new Map<string, any[]>()
   for (const item of items) {
     const key = String(item?.sitio || 'Portal')
@@ -1348,7 +1368,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     ]
 
     elements.each((i, el) => {
-      if (items.length >= 20) return // Aumentar a 20 resultados por portal
+      if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
 
       // Selectores HÃƒÂ­bridos (intenta uno, si no, el otro)
       const titulo = $(el).find('.ui-search-item__title, .poly-component__title, h2, h3, [class*="title"]').first().text().trim()
@@ -1619,7 +1639,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     }
     
     argenElements.each((i, el) => {
-      if (items.length >= 20) return // Aumentar a 20 resultados
+      if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
 
       const titulo = $(el).find('.card__title, .title, h2, h3, [class*="title"]').first().text().trim() || 
                      $(el).find('.card__address, [class*="address"]').first().text().trim()
@@ -1801,7 +1821,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     }
     
     remaxElements.each((i, el) => {
-      if (items.length >= 20) return // Aumentar a 20 resultados
+      if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
 
       const titulo = $(el).find('.property-title, .listing-title, h3, h4, [class*="title"]').first().text().trim()
       const precio = $(el).find('.property-price, .price, [data-testid="price"], [class*="price"]').first().text().trim()
@@ -2026,7 +2046,7 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
     }
     
     zonaElements.each((i, el) => {
-      if (items.length >= 20) return
+      if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
 
       const titulo = $(el).find('.posting-title, .posting-title a, h2, .title, [class*="title"]').first().text().trim()
       const precio = $(el).find('.posting-price, .price, [data-price], [class*="price"]').first().text().trim()
@@ -2232,7 +2252,7 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     }
     
     buscaElements.each((i, el) => {
-      if (items.length >= 20) return
+      if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
 
       const titulo = $(el).find('.property-title, .title, h3, h4, [class*="title"]').first().text().trim()
       const precio = $(el).find('.property-price, .price, [class*="price"]').first().text().trim()

@@ -178,7 +178,7 @@ const Sidebar = () => {
     { href: '/gestion', label: 'Gestión Cliente', icon: Icons.gestion, description: 'Seguimiento completo del cliente' },
     { href: '/clientes', label: 'Clientes', icon: Icons.clientes, description: 'Base de datos de clientes' },
     { href: '/busquedas', label: 'Búsquedas', icon: Icons.busquedas, description: 'Requerimientos de clientes' },
-    { href: '/parsear', label: 'Buscar con IA', icon: Icons.parsear, description: 'Buscar propiedades en la web con IA' },
+    { href: '/parsear', label: 'Búsqueda Inteligente', icon: Icons.parsear, description: 'Buscar propiedades con analisis inteligente' },
     { href: '/ultima-web', label: 'Última Búsqueda Web', icon: Icons.matches, description: 'Último análisis web guardado' },
     { href: '/matches', label: 'Matches', icon: Icons.matches, description: 'Propiedades que coinciden' },
     { href: '/propiedades', label: 'Propiedades', icon: Icons.propiedades, description: 'Inventario de propiedades' },
@@ -201,7 +201,7 @@ const Sidebar = () => {
   ]
 
   return (
-    <aside className="w-[72px] hover:w-64 group/sidebar bg-white border-r border-slate-200 min-h-screen flex flex-col transition-all duration-300 ease-in-out overflow-hidden shadow-sm">
+    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen flex flex-col shadow-sm">
       {/* Logo */}
       <div className="p-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
@@ -211,7 +211,7 @@ const Sidebar = () => {
               <polyline points="9 22 9 12 15 12 15 22"></polyline>
             </svg>
           </div>
-          <div className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+          <div className=" whitespace-nowrap">
             <h1 className="text-lg font-bold text-slate-800">CRM</h1>
             <p className="text-xs text-slate-500 -mt-0.5">Inmobiliario</p>
           </div>
@@ -220,7 +220,7 @@ const Sidebar = () => {
 
       {/* Inmobiliaria Selector (for superadmin) */}
       {currentUser?.rol === 'superadmin' && (
-        <div className="px-3 py-2 border-b border-slate-100 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+        <div className="px-3 py-2 border-b border-slate-100 ">
           <select
             value={selectedInmobiliaria || ''}
             onChange={(e) => setSelectedInmobiliaria(e.target.value || null)}
@@ -238,7 +238,19 @@ const Sidebar = () => {
 
       {/* User Selector */}
       <div className="px-2 py-2 border-b border-slate-100">
-        <UserSelector />
+        {currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin' ? (
+          <UserSelector />
+        ) : (
+          <div className="w-full px-3 py-2.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 flex items-center gap-3">
+            <div className="w-7 h-7 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {currentUser?.nombre?.charAt(0).toUpperCase() || '?'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{currentUser?.nombre || 'Usuario'}</p>
+              <p className="text-[11px] text-slate-500 capitalize">{currentUser?.rol || 'agente'}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -264,7 +276,7 @@ const Sidebar = () => {
               )}>
                 <IconComponent />
               </span>
-              <div className="flex flex-col whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+              <div className="flex flex-col whitespace-nowrap ">
                 <span className="text-sm font-medium">
                   {link.label}
                 </span>
@@ -283,7 +295,7 @@ const Sidebar = () => {
       {/* Admin Section */}
       {(currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') && (
         <div className="px-2 py-3 border-t border-slate-100">
-          <p className="px-3 text-[10px] text-slate-400 uppercase tracking-wider mb-2 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+          <p className="px-3 text-[10px] text-slate-400 uppercase tracking-wider mb-2 ">
             {currentUser.rol === 'superadmin' ? 'Super Admin' : 'Administración'}
           </p>
           <nav className="space-y-1">
@@ -308,7 +320,7 @@ const Sidebar = () => {
                   )}>
                     <IconComponent />
                   </span>
-                  <div className="flex flex-col whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+                  <div className="flex flex-col whitespace-nowrap ">
                     <span className="text-sm font-medium">
                       {link.label}
                     </span>
@@ -333,7 +345,7 @@ const Sidebar = () => {
             <div className="w-9 h-9 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 shadow-md">
               {currentUser.nombre.charAt(0).toUpperCase()}
             </div>
-            <div className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 min-w-0">
+            <div className=" min-w-0">
               <p className="text-sm font-medium text-slate-800 truncate">{currentUser.nombre}</p>
               <p className="text-xs text-slate-500 capitalize">{currentUser.rol}</p>
             </div>
@@ -345,7 +357,7 @@ const Sidebar = () => {
             <span className="flex-shrink-0 group-hover/logout:scale-110 transition-transform duration-200">
               <Icons.logout />
             </span>
-            <span className="text-sm font-medium whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">
+            <span className="text-sm font-medium whitespace-nowrap ">
               Cerrar Sesión
             </span>
           </button>
@@ -356,3 +368,4 @@ const Sidebar = () => {
 }
 
 export default Sidebar
+

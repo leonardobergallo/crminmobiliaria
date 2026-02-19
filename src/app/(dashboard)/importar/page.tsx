@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 interface ImportResult {
   success: boolean
   message: string
+  mode?: 'preview' | 'import'
   count?: number
   error?: string
   details?: Record<string, unknown>
@@ -17,6 +18,7 @@ export default function ImportarPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [fileName, setFileName] = useState('')
+  const [fileDataBase64, setFileDataBase64] = useState('')
   const [importType, setImportType] = useState<'propiedades' | 'clientes_busquedas'>('propiedades')
 
   const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
@@ -32,6 +34,63 @@ export default function ImportarPage() {
     return btoa(binary)
   }
 
+  const endpoint = importType === 'propiedades'
+    ? '/api/import-properties'
+    : '/api/import-clientes-busquedas'
+
+  const runImport = async (params: { fileName: string; fileData: string; preview: boolean }) => {
+    const targetUserId =
+      typeof window !== 'undefined' ? localStorage.getItem('selectedUserId') : null
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: params.fileName,
+        fileData: params.fileData,
+        preview: params.preview,
+        targetUserId,
+      }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      setResult({
+        success: false,
+        message: params.preview ? 'Error en vista previa' : 'Error al importar',
+        error: data.error,
+      })
+      return
+    }
+
+    if (params.preview) {
+      setResult({
+        success: true,
+        mode: 'preview',
+        message: 'Vista previa lista. Revisa el resumen y confirma para importar.',
+        details: data,
+      })
+      return
+    }
+
+    if (importType === 'propiedades') {
+      setResult({
+        success: true,
+        mode: 'import',
+        message: `${data.count ?? 0} propiedades procesadas correctamente`,
+        count: data.count,
+        details: data,
+      })
+    } else {
+      setResult({
+        success: true,
+        mode: 'import',
+        message: `Importacion completada: ${data.busquedasCreadas ?? 0} consultas creadas`,
+        details: data,
+      })
+    }
+  }
+
   const handleFileSelect = async (file: File) => {
     setFileName(file.name)
     setIsLoading(true)
@@ -40,43 +99,8 @@ export default function ImportarPage() {
     try {
       const arrayBuffer = await file.arrayBuffer()
       const base64 = arrayBufferToBase64(arrayBuffer)
-      const endpoint = importType === 'propiedades'
-        ? '/api/import-properties'
-        : '/api/import-clientes-busquedas'
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileData: base64,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        if (importType === 'propiedades') {
-          setResult({
-            success: true,
-            message: `${data.count ?? 0} propiedades importadas correctamente`,
-            count: data.count,
-            details: data,
-          })
-        } else {
-          setResult({
-            success: true,
-            message: `Importacion completada: ${data.busquedasCreadas ?? 0} consultas cargadas`,
-            details: data,
-          })
-        }
-      } else {
-        setResult({
-          success: false,
-          message: 'Error al importar',
-          error: data.error,
-        })
-      }
+      setFileDataBase64(base64)
+      await runImport({ fileName: file.name, fileData: base64, preview: true })
     } catch (error) {
       setResult({
         success: false,
@@ -88,8 +112,21 @@ export default function ImportarPage() {
     }
   }
 
+  const handleConfirmImport = async () => {
+    if (!fileName || !fileDataBase64) return
+    setIsLoading(true)
+    try {
+      await runImport({ fileName, fileData: fileDataBase64, preview: false })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const resultErrors = Array.isArray(result?.details?.errors)
     ? (result?.details?.errors as string[])
+    : []
+  const accionesPreview = Array.isArray(result?.details?.acciones)
+    ? (result?.details?.acciones as Array<{ fila: number; accion: string; detalle: string; entidad?: string }>)
     : []
 
   return (
@@ -104,7 +141,7 @@ export default function ImportarPage() {
         <Card className="border-slate-200 bg-slate-50">
           <CardContent className="pt-4">
             <div className="text-sm text-slate-700">
-              Paso a paso: `1)` elegi tipo de importacion, `2)` revisa formato esperado, `3)` subi archivo, `4)` valida resumen y corrige errores si aparecen filas omitidas.
+              Paso a paso: `1)` elegi tipo de importacion, `2)` revisa formato esperado, `3)` subi archivo, `4)` revisa vista previa, `5)` confirma importacion.
             </div>
           </CardContent>
         </Card>
@@ -124,6 +161,7 @@ export default function ImportarPage() {
                 setImportType('propiedades')
                 setResult(null)
                 setFileName('')
+                setFileDataBase64('')
               }}
             >
               Propiedades
@@ -135,6 +173,7 @@ export default function ImportarPage() {
                 setImportType('clientes_busquedas')
                 setResult(null)
                 setFileName('')
+                setFileDataBase64('')
               }}
             >
               Clientes + Consultas
@@ -251,8 +290,22 @@ export default function ImportarPage() {
                     <div>Clientes nuevos: {String(result.details.clientesCreados ?? 0)}</div>
                     <div>Clientes actualizados: {String(result.details.clientesActualizados ?? 0)}</div>
                     <div>Consultas cargadas: {String(result.details.busquedasCreadas ?? 0)}</div>
+                    <div>Consultas actualizadas: {String(result.details.busquedasActualizadas ?? 0)}</div>
                     <div>Consultas duplicadas: {String(result.details.busquedasDuplicadas ?? 0)}</div>
                     <div>Filas omitidas: {String(result.details.filasOmitidas ?? 0)}</div>
+                  </div>
+                )}
+
+                {result.mode === 'preview' && accionesPreview.length > 0 && (
+                  <div className="bg-white rounded p-3 border border-slate-200">
+                    <p className="text-sm font-medium mb-2">Vista previa (primeras acciones)</p>
+                    <ul className="text-xs text-slate-700 space-y-1 max-h-48 overflow-y-auto">
+                      {accionesPreview.map((item, idx) => (
+                        <li key={`${item.fila}-${idx}`}>
+                          {`Fila ${item.fila} · ${item.entidad ? `${item.entidad} · ` : ''}${item.accion} · ${item.detalle}`}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
@@ -273,10 +326,21 @@ export default function ImportarPage() {
                   </div>
                 )}
 
+                {result.mode === 'preview' && result.success ? (
+                  <Button
+                    onClick={handleConfirmImport}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Importando...' : 'Confirmar importacion'}
+                  </Button>
+                ) : null}
+
                 <Button
                   onClick={() => {
                     setResult(null)
                     setFileName('')
+                    setFileDataBase64('')
                   }}
                   className="w-full"
                   variant="outline"

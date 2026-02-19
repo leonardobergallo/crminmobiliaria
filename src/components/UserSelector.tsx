@@ -73,7 +73,7 @@ export default function UserSelector() {
       <div className="w-full px-3 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm animate-pulse">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-slate-200 rounded-full"></div>
-          <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity">Cargando...</span>
+          <span className="">Cargando...</span>
         </div>
       </div>
     );
@@ -90,10 +90,10 @@ export default function UserSelector() {
         <div className="w-7 h-7 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
           {currentUser?.nombre?.charAt(0).toUpperCase() || '?'}
         </div>
-        <span className="text-sm truncate opacity-0 group-hover/sidebar:opacity-100 transition-opacity flex-1">
+        <span className="text-sm truncate  flex-1">
           {currentUser?.nombre || 'Sin agente'}
         </span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 opacity-0 group-hover/sidebar:opacity-100 transition-opacity flex-shrink-0"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400  flex-shrink-0"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
 
       {isOpen && (
@@ -140,3 +140,4 @@ export default function UserSelector() {
     </div>
   );
 }
+

@@ -38,6 +38,8 @@ interface CurrentUser {
   rol: string
 }
 
+type PrioridadNivel = 'ALTA' | 'MEDIA' | 'BAJA'
+
 const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
 const MERCADO_UNICO_INMOBILIARIAS = [
   '9010 Inmobiliaria',
@@ -197,12 +199,17 @@ export default function BusquedasPage() {
   const [filtro, setFiltro] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroAgente, setFiltroAgente] = useState('')
+  const [filtroPrioridad, setFiltroPrioridad] = useState<'TODAS' | PrioridadNivel>('TODAS')
+  const [ordenarPorPrioridad, setOrdenarPorPrioridad] = useState(true)
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [editandoBusquedaId, setEditandoBusquedaId] = useState<string | null>(null)
+  const [guardandoBusqueda, setGuardandoBusqueda] = useState(false)
+  const [eliminandoBusquedaId, setEliminandoBusquedaId] = useState<string | null>(null)
+  const [busquedaEnVista, setBusquedaEnVista] = useState<Busqueda | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [analisisResultado, setAnalisisResultado] = useState<any>(null)
   const [analisisError, setAnalisisError] = useState<string | null>(null)
-  const [analizandoId, setAnalizandoId] = useState<string | null>(null)
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [linkExterno, setLinkExterno] = useState('')
   const [linkExternoTitulo, setLinkExternoTitulo] = useState('')
@@ -217,6 +224,8 @@ export default function BusquedasPage() {
   })
   const [aplicandoFiltrosPortales, setAplicandoFiltrosPortales] = useState(false)
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
+  const [scrapedPage, setScrapedPage] = useState(1)
+  const SCRAPED_PAGE_SIZE = 10
 
   const [formData, setFormData] = useState({
     clienteId: '',
@@ -233,6 +242,95 @@ export default function BusquedasPage() {
   })
 
   const [clientes, setClientes] = useState<any[]>([])
+
+  const resetBusquedaForm = () => {
+    setFormData({
+      clienteId: '',
+      origen: 'ACTIVA',
+      moneda: 'USD',
+      presupuestoDesde: '',
+      presupuestoHasta: '',
+      tipoPropiedad: '',
+      provincia: 'Santa Fe',
+      ciudad: 'Santa Fe Capital',
+      barrio: '',
+      dormitoriosMin: '',
+      observaciones: '',
+    })
+    setEditandoBusquedaId(null)
+  }
+
+  const parseUbicacion = (ubicacion?: string | null) => {
+    const raw = String(ubicacion || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    const provincia = raw.find((part) => part.toLowerCase().includes('santa fe')) || 'Santa Fe'
+    const ciudad = raw.find((part) => part.toLowerCase().includes('capital') || part.toLowerCase().includes('tome') || part.toLowerCase().includes('recreo') || part.toLowerCase().includes('sauce')) || 'Santa Fe Capital'
+    const barrio = raw.find((part) => part !== provincia && part !== ciudad) || ''
+    return { provincia, ciudad, barrio }
+  }
+
+  const parsePresupuesto = (presupuestoTexto?: string | null) => {
+    const text = String(presupuestoTexto || '')
+    const moneda = text.toUpperCase().includes('ARS') ? 'ARS' : 'USD'
+    const values = text.match(/\d[\d.,]*/g)?.map((v) => parseInt(v.replace(/[^\d]/g, ''), 10)).filter((n) => !Number.isNaN(n)) || []
+    if (values.length >= 2) {
+      return { moneda, desde: String(values[0]), hasta: String(values[1]) }
+    }
+    if (values.length === 1) {
+      return { moneda, desde: '', hasta: String(values[0]) }
+    }
+    return { moneda, desde: '', hasta: '' }
+  }
+
+  const abrirEdicion = (busqueda: Busqueda) => {
+    const { provincia, ciudad, barrio } = parseUbicacion(busqueda.ubicacionPreferida)
+    const { moneda, desde, hasta } = parsePresupuesto(busqueda.presupuestoTexto)
+    setFormData({
+      clienteId: busqueda.cliente.id || '',
+      origen: busqueda.origen || 'ACTIVA',
+      moneda,
+      presupuestoDesde: desde,
+      presupuestoHasta: hasta,
+      tipoPropiedad: busqueda.tipoPropiedad || '',
+      provincia,
+      ciudad,
+      barrio,
+      dormitoriosMin: typeof busqueda.dormitoriosMin === 'number' ? String(busqueda.dormitoriosMin) : '',
+      observaciones: busqueda.observaciones || '',
+    })
+    setEditandoBusquedaId(busqueda.id)
+    setMostrarForm(true)
+    setBusquedaEnVista(busqueda)
+  }
+
+  const eliminarBusqueda = async (busqueda: Busqueda) => {
+    if (!confirm(`¿Eliminar la busqueda de ${busqueda.cliente.nombreCompleto}?`)) return
+    setEliminandoBusquedaId(busqueda.id)
+    try {
+      const response = await fetch(`/api/busquedas/${busqueda.id}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        alert(errorData?.error || 'No se pudo eliminar la busqueda')
+        return
+      }
+      if (busquedaEnVista?.id === busqueda.id) {
+        setBusquedaEnVista(null)
+      }
+      if (editandoBusquedaId === busqueda.id) {
+        setMostrarForm(false)
+        resetBusquedaForm()
+      }
+      await fetchBusquedas()
+    } catch (error: any) {
+      alert(`Error de conexion: ${error?.message || 'No se pudo conectar al servidor'}`)
+    } finally {
+      setEliminandoBusquedaId(null)
+    }
+  }
 
   const CIUDADES_SANTA_FE = [
     'Santa Fe Capital',
@@ -439,6 +537,7 @@ export default function BusquedasPage() {
     }
 
     try {
+      setGuardandoBusqueda(true)
       // Validar que clienteId estÃƒÂ© presente y sea vÃƒÂ¡lido
       if (!formData.clienteId || formData.clienteId.trim() === '') {
         alert('Por favor selecciona un cliente')
@@ -495,35 +594,28 @@ export default function BusquedasPage() {
         }
       }
 
-      const response = await fetch('/api/busquedas', {
-        method: 'POST',
+      const isEdit = Boolean(editandoBusquedaId)
+      const endpoint = isEdit ? `/api/busquedas/${editandoBusquedaId}` : '/api/busquedas'
+      const method = isEdit ? 'PATCH' : 'POST'
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
 
       if (response.ok) {
         setMostrarForm(false)
-        setFormData({
-          clienteId: '',
-          origen: 'ACTIVA',
-          moneda: 'USD',
-          presupuestoDesde: '',
-          presupuestoHasta: '',
-          tipoPropiedad: '',
-          provincia: 'Santa Fe',
-          ciudad: 'Santa Fe Capital',
-          barrio: '',
-          dormitoriosMin: '',
-          observaciones: '',
-        })
+        resetBusquedaForm()
         await fetchBusquedas()
       } else {
         const errorData = await response.json().catch(() => null)
-        alert(errorData?.error || 'Error al crear bÃƒÂºsqueda')
+        alert(errorData?.error || (isEdit ? 'Error al actualizar busqueda' : 'Error al crear busqueda'))
       }
     } catch (error: any) {
       console.error('Error:', error)
       alert(`Error de conexion: ${error.message || 'No se pudo conectar al servidor'}`)
+    } finally {
+      setGuardandoBusqueda(false)
     }
   }
 
@@ -531,6 +623,61 @@ export default function BusquedasPage() {
     return busqueda.usuario?.nombre || 
            busqueda.cliente.usuario?.nombre || 
            'Sin asignar'
+  }
+
+  const getPrioridadBusqueda = (busqueda: Busqueda): { nivel: PrioridadNivel; score: number; motivo: string } => {
+    let score = 0
+    const motivos: string[] = []
+
+    const estado = String(busqueda.estado || '').toUpperCase()
+    if (estado === 'NUEVO') {
+      score += 4
+      motivos.push('Nuevo ingreso')
+    } else if (estado === 'CALIFICADO') {
+      score += 3
+      motivos.push('Calificado')
+    } else if (estado === 'VISITA') {
+      score += 2
+      motivos.push('En seguimiento')
+    } else if (estado === 'RESERVA' || estado === 'CERRADO' || estado === 'PERDIDO') {
+      score -= 10
+    }
+
+    const createdAtTs = new Date(busqueda.createdAt).getTime()
+    if (!Number.isNaN(createdAtTs)) {
+      const dias = Math.floor((Date.now() - createdAtTs) / (1000 * 60 * 60 * 24))
+      if (dias <= 3) {
+        score += 3
+        motivos.push('Muy reciente')
+      } else if (dias <= 7) {
+        score += 2
+        motivos.push('Reciente')
+      } else if (dias <= 14) {
+        score += 1
+      }
+    }
+
+    if (busqueda.presupuestoTexto) {
+      score += 1
+      motivos.push('Con presupuesto')
+    }
+
+    if (busqueda.tipoPropiedad && busqueda.ubicacionPreferida) {
+      score += 1
+    }
+
+    const notas = String(busqueda.observaciones || '').toLowerCase()
+    if (/(urgente|ya|hoy|esta semana|cerrar|seña|reserva|aprobado|preaprobado)/.test(notas)) {
+      score += 2
+      motivos.push('Señal de urgencia')
+    }
+
+    const nivel: PrioridadNivel = score >= 7 ? 'ALTA' : score >= 4 ? 'MEDIA' : 'BAJA'
+    return {
+      nivel,
+      score,
+      motivo: motivos.slice(0, 2).join(' · ') || 'Sin señales fuertes',
+    }
   }
 
   const buildMensajeFromBusqueda = (b: Busqueda) => {
@@ -700,60 +847,6 @@ export default function BusquedasPage() {
     window.location.href = `/gestion?${params.toString()}`
   }
 
-  const analizarBusqueda = async (b: Busqueda) => {
-    setAnalisisError(null)
-    setAnalisisResultado(null)
-    setAnalizandoId(b.id)
-    try {
-      const mensaje = buildMensajeFromBusqueda(b)
-      const res = await fetch('/api/parsear-busqueda', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensaje, guardar: false, clienteId: null }),
-      })
-
-      const data = await res.json().catch(() => null)
-      if (!res.ok) {
-        setAnalisisError(data?.error || 'Error al analizar')
-        return
-      }
-
-      try {
-        localStorage.setItem(
-          'ultimaWebResult',
-          JSON.stringify({
-            savedAt: new Date().toISOString(),
-            source: 'busquedas',
-            busquedaId: b.id,
-            clienteId: b.cliente?.id,
-            clienteLabel: b.cliente?.nombreCompleto,
-            data,
-          })
-        )
-      } catch {
-        // ignore
-      }
-
-      setAnalisisResultado({ busquedaId: b.id, clienteId: b.cliente?.id, clienteLabel: b.cliente?.nombreCompleto, data })
-      setSeleccionadas(new Set())
-      setLinkSeleccionado(null)
-      setLinkExterno('')
-      setLinkExternoTitulo('')
-      setFiltrosPortales({
-        moneda: '',
-        precioDesde: '',
-        precioHasta: '',
-        dormitoriosMin: '',
-        ambientesMin: '',
-      })
-      setAplicandoFiltrosPortales(false)
-    } catch (e: any) {
-      setAnalisisError(e?.message || 'Error de conexion')
-    } finally {
-      setAnalizandoId(null)
-    }
-  }
-
   // Asegurarse de que busquedas sea un array antes de filtrar
   const reanalizarPortalesConFiltros = async (resetear = false) => {
     if (!analisisResultado?.busquedaId) return
@@ -761,6 +854,7 @@ export default function BusquedasPage() {
     if (!b) return
 
     setAplicandoFiltrosPortales(true)
+    setScrapedPage(1)
     setAnalisisError(null)
     try {
       const mensaje = buildMensajeFromBusqueda(b)
@@ -793,20 +887,32 @@ export default function BusquedasPage() {
     }
   }
 
-  const filtrados = Array.isArray(busquedas) ? busquedas.filter((b) => {
-    // Validar que b tenga la estructura esperada
-    if (!b || !b.cliente || !b.cliente.nombreCompleto) return false
-    
-    const matchTexto = b.cliente.nombreCompleto
-      .toLowerCase()
-      .includes(filtro.toLowerCase())
-    const matchEstado =
-      !filtroEstado || b.estado === filtroEstado
-    const matchAgente = !filtroAgente || 
-      b.usuario?.id === filtroAgente ||
-      b.cliente.usuario?.id === filtroAgente
-    return matchTexto && matchEstado && matchAgente
-  }) : []
+  const filtrados = Array.isArray(busquedas)
+    ? busquedas
+        .filter((b) => {
+          if (!b || !b.cliente || !b.cliente.nombreCompleto) return false
+
+          const matchTexto = b.cliente.nombreCompleto
+            .toLowerCase()
+            .includes(filtro.toLowerCase())
+          const matchEstado = !filtroEstado || b.estado === filtroEstado
+          const matchAgente =
+            !filtroAgente ||
+            b.usuario?.id === filtroAgente ||
+            b.cliente.usuario?.id === filtroAgente
+          const prioridad = getPrioridadBusqueda(b)
+          const matchPrioridad = filtroPrioridad === 'TODAS' || prioridad.nivel === filtroPrioridad
+
+          return matchTexto && matchEstado && matchAgente && matchPrioridad
+        })
+        .sort((a, b) => {
+          if (!ordenarPorPrioridad) return 0
+          const pa = getPrioridadBusqueda(a)
+          const pb = getPrioridadBusqueda(b)
+          if (pb.score !== pa.score) return pb.score - pa.score
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        })
+    : []
 
   if (loading) return <div className="text-center py-8">Cargando...</div>
 
@@ -815,6 +921,11 @@ export default function BusquedasPage() {
   const totalSeleccionadas = propiedadesSeleccionadas + externasSeleccionadas + (linkSeleccionado ? 1 : 0)
   const scrapedItems = Array.isArray(analisisResultado?.data?.scrapedItems) ? analisisResultado.data.scrapedItems : []
   const scrapedItemsFiltrados = scrapedItems.map((item: any, idx: number) => ({ item, idx }))
+  const scrapedTotalPages = Math.max(1, Math.ceil(scrapedItemsFiltrados.length / SCRAPED_PAGE_SIZE))
+  const scrapedItemsPaginados = scrapedItemsFiltrados.slice(
+    (scrapedPage - 1) * SCRAPED_PAGE_SIZE,
+    scrapedPage * SCRAPED_PAGE_SIZE
+  )
   const portalSearchLinks = getPortalSearchLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
   const analisisExtraLinks = getAnalisisExtraLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
   const inmoMercadoUnicoUrl = inmoMercadoUnico
@@ -838,13 +949,22 @@ export default function BusquedasPage() {
       )
     : []
 
+  const sugeridasPrioridad = filtrados
+    .map((busqueda) => ({ busqueda, prioridad: getPrioridadBusqueda(busqueda) }))
+    .filter((item) => item.prioridad.nivel !== 'BAJA' && !['CERRADO', 'PERDIDO'].includes(item.busqueda.estado))
+    .sort((a, b) => b.prioridad.score - a.prioridad.score)
+    .slice(0, 6)
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900">Busquedas</h1>
         {currentUser?.rol !== 'admin' && (
           <Button
-            onClick={() => setMostrarForm(!mostrarForm)}
+            onClick={() => {
+              if (mostrarForm) resetBusquedaForm()
+              setMostrarForm(!mostrarForm)
+            }}
             className="bg-blue-600 hover:bg-blue-700"
           >
             + Nueva Busqueda
@@ -854,7 +974,7 @@ export default function BusquedasPage() {
       <Card className="border-slate-200 bg-slate-50">
         <CardContent className="pt-4">
           <div className="text-sm text-slate-700">
-            Flujo recomendado: `1)` crear/seleccionar busqueda, `2)` analizar portales + CRM, `3)` seleccionar opciones, `4)` guardar en Gestion del Cliente para seguimiento.
+            Flujo recomendado: `1)` crear busqueda, `2)` revisar detalle, `3)` editar si hace falta, `4)` eliminar si ya no corresponde.
           </div>
         </CardContent>
       </Card>
@@ -896,9 +1016,9 @@ export default function BusquedasPage() {
       {mostrarForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Crear Nueva Busqueda</CardTitle>
+            <CardTitle>{editandoBusquedaId ? 'Editar Busqueda' : 'Crear Nueva Busqueda'}</CardTitle>
             <p className="text-sm text-slate-600">
-              Completa los datos base del requerimiento del cliente. Luego usa "Analizar" para buscar oportunidades.
+              Completa los datos base del requerimiento del cliente.
             </p>
           </CardHeader>
           <CardContent>
@@ -1080,18 +1200,96 @@ export default function BusquedasPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" className="bg-green-600 hover:bg-green-700">
-                  Guardar
+                <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={guardandoBusqueda}>
+                  {guardandoBusqueda ? 'Guardando...' : editandoBusquedaId ? 'Guardar cambios' : 'Guardar'}
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => setMostrarForm(false)}
+                  onClick={() => {
+                    setMostrarForm(false)
+                    resetBusquedaForm()
+                  }}
                   variant="outline"
                 >
                   Cancelar
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {busquedaEnVista && (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardHeader>
+            <CardTitle>Detalle de busqueda</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div><span className="font-semibold">Cliente:</span> {busquedaEnVista.cliente.nombreCompleto}</div>
+            <div><span className="font-semibold">Origen:</span> {busquedaEnVista.origen || '-'}</div>
+            <div><span className="font-semibold">Presupuesto:</span> {busquedaEnVista.presupuestoTexto || '-'}</div>
+            <div><span className="font-semibold">Tipo:</span> {busquedaEnVista.tipoPropiedad || '-'}</div>
+            <div><span className="font-semibold">Ubicacion:</span> {busquedaEnVista.ubicacionPreferida || '-'}</div>
+            <div><span className="font-semibold">Dormitorios min:</span> {busquedaEnVista.dormitoriosMin ?? '-'}</div>
+            <div className="md:col-span-2"><span className="font-semibold">Observaciones:</span> {busquedaEnVista.observaciones || '-'}</div>
+            <div className="md:col-span-2 flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => abrirEdicion(busquedaEnVista)}>
+                Editar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => eliminarBusqueda(busquedaEnVista)}
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                disabled={eliminandoBusquedaId === busquedaEnVista.id}
+              >
+                {eliminandoBusquedaId === busquedaEnVista.id ? 'Eliminando...' : 'Eliminar'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setBusquedaEnVista(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sugeridasPrioridad.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle>Sugerencias de prioridad</CardTitle>
+            <p className="text-sm text-slate-700">
+              Estas busquedas deberian atenderse primero por estado, fecha y señales comerciales.
+            </p>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {sugeridasPrioridad.map(({ busqueda, prioridad }) => (
+              <div key={busqueda.id} className="rounded-md border border-amber-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-slate-900">{busqueda.cliente.nombreCompleto}</div>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                    prioridad.nivel === 'ALTA'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {prioridad.nivel}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  {busqueda.tipoPropiedad || '-'} · {busqueda.presupuestoTexto || '-'}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {prioridad.motivo}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant="outline" onClick={() => setBusquedaEnVista(busqueda)}>
+                    Ver
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => abrirEdicion(busqueda)}>
+                    Editar
+                  </Button>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -1105,6 +1303,24 @@ export default function BusquedasPage() {
           onChange={(e) => setFiltro(e.target.value)}
           className="max-w-md"
         />
+        <select
+          value={filtroPrioridad}
+          onChange={(e) => setFiltroPrioridad(e.target.value as 'TODAS' | PrioridadNivel)}
+          className="px-3 py-2 border border-slate-300 rounded-md"
+        >
+          <option value="TODAS">Todas las prioridades</option>
+          <option value="ALTA">Solo ALTA</option>
+          <option value="MEDIA">Solo MEDIA</option>
+          <option value="BAJA">Solo BAJA</option>
+        </select>
+        <label className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={ordenarPorPrioridad}
+            onChange={(e) => setOrdenarPorPrioridad(e.target.checked)}
+          />
+          Ordenar por prioridad
+        </label>
         <select
           value={filtroEstado}
           onChange={(e) => setFiltroEstado(e.target.value)}
@@ -1133,7 +1349,7 @@ export default function BusquedasPage() {
         )}
       </div>
       <p className="text-xs text-slate-500">
-        Usa estos filtros para encontrar rapido una busqueda y abrir su analisis o la gestion del cliente.
+        Usa estos filtros para encontrar rapido una busqueda y verla, editarla o eliminarla sin salir de esta pagina.
       </p>
 
       {/* Tabla */}
@@ -1184,24 +1400,30 @@ export default function BusquedasPage() {
                     )}
                     <TableCell className="text-right">
                       <div className="flex flex-wrap justify-end gap-2">
-                        {currentUser?.rol !== 'admin' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => analizarBusqueda(busqueda)}
-                            className="h-8 px-3 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
-                            disabled={analizandoId === busqueda.id}
-                          >
-                            {analizandoId === busqueda.id ? 'Analizando...' : 'Analizar'}
-                          </Button>
-                        )}
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
+                          onClick={() => setBusquedaEnVista(busqueda)}
                           className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
                         >
-                          Ir
+                          Ver
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirEdicion(busqueda)}
+                          className="h-8 px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => eliminarBusqueda(busqueda)}
+                          className="h-8 px-3 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+                          disabled={eliminandoBusquedaId === busqueda.id}
+                        >
+                          {eliminandoBusquedaId === busqueda.id ? 'Eliminando...' : 'Eliminar'}
                         </Button>
                       </div>
                     </TableCell>
@@ -1425,8 +1647,35 @@ export default function BusquedasPage() {
                       <div className="text-sm text-slate-600 mb-2">
                         Estos filtros rehacen la busqueda en portales (no solo visual).
                       </div>
+                      <div className="flex items-center justify-between text-xs text-slate-600">
+                        <span>
+                          Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
+                          {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItemsFiltrados.length)} de {scrapedItemsFiltrados.length}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
+                            disabled={scrapedPage <= 1}
+                          >
+                            Anterior
+                          </Button>
+                          <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
+                            disabled={scrapedPage >= scrapedTotalPages}
+                          >
+                            Siguiente
+                          </Button>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {scrapedItemsFiltrados.map(({ item, idx }: any, pos: number) => (
+                        {scrapedItemsPaginados.map(({ item, idx }: any, pos: number) => (
                           <div key={`${item?.url || pos}`} className="flex gap-3 p-3 bg-white border rounded-lg">
                             {item?.img ? (
                               <img
