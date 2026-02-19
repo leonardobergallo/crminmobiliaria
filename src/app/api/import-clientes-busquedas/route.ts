@@ -11,6 +11,14 @@ type PreviewAction = {
   detalle: string
 }
 
+type ClienteImport = {
+  id: string
+  nombreCompleto: string
+  telefono: string | null
+  email: string | null
+  notas: string | null
+}
+
 function normalizeKey(input: string): string {
   return input
     .normalize('NFD')
@@ -168,10 +176,17 @@ export async function POST(req: NextRequest) {
         const email = getString(rowMap, ['email', 'correo', 'mail'])
         const notasCliente = getString(rowMap, ['notasCliente', 'notas cliente', 'notaCliente', 'notas'])
 
-        let cliente = await prisma.cliente.findFirst({
+        let cliente: ClienteImport | null = await prisma.cliente.findFirst({
           where: {
             nombreCompleto,
             inmobiliariaId,
+          },
+          select: {
+            id: true,
+            nombreCompleto: true,
+            telefono: true,
+            email: true,
+            notas: true,
           },
         })
 
@@ -186,6 +201,13 @@ export async function POST(req: NextRequest) {
                 usuarioId: ownerUserId,
                 inmobiliariaId,
               },
+              select: {
+                id: true,
+                nombreCompleto: true,
+                telefono: true,
+                email: true,
+                notas: true,
+              },
             })
           } else {
             cliente = {
@@ -194,9 +216,7 @@ export async function POST(req: NextRequest) {
               telefono,
               email,
               notas: notasCliente,
-              usuarioId: ownerUserId,
-              inmobiliariaId,
-            } as typeof cliente
+            }
           }
           clientesCreados++
           acciones.push({
@@ -219,6 +239,13 @@ export async function POST(req: NextRequest) {
                   telefono: telefono ?? cliente.telefono,
                   email: email ?? cliente.email,
                   notas: notasCliente ?? cliente.notas,
+                },
+                select: {
+                  id: true,
+                  nombreCompleto: true,
+                  telefono: true,
+                  email: true,
+                  notas: true,
                 },
               })
             }
