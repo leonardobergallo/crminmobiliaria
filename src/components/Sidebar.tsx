@@ -160,6 +160,11 @@ const Sidebar = () => {
       }
     }
     fetchUser()
+    try {
+      localStorage.removeItem('ultimaWebResult')
+    } catch {
+      // ignore
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -179,8 +184,6 @@ const Sidebar = () => {
     { href: '/clientes', label: 'Clientes', icon: Icons.clientes, description: 'Base de datos de clientes' },
     { href: '/busquedas', label: 'Búsquedas', icon: Icons.busquedas, description: 'Requerimientos de clientes' },
     { href: '/parsear', label: 'Búsqueda Inteligente', icon: Icons.parsear, description: 'Buscar propiedades con analisis inteligente' },
-    { href: '/ultima-web', label: 'Última Búsqueda Web', icon: Icons.matches, description: 'Último análisis web guardado' },
-    { href: '/matches', label: 'Matches', icon: Icons.matches, description: 'Propiedades que coinciden' },
     { href: '/propiedades', label: 'Propiedades', icon: Icons.propiedades, description: 'Inventario de propiedades' },
     { href: '/carga-rapida', label: 'Carga Rápida', icon: Icons.carga, description: 'Agregar propiedades rápido' },
     { href: '/tareas', label: 'Agenda / Tareas', icon: Icons.agenda, description: 'Visitas y recordatorios' },

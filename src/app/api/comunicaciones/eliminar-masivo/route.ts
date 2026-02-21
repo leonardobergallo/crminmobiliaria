@@ -6,9 +6,9 @@ export async function DELETE(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser()
 
-    if (!currentUser || !['superadmin', 'admin'].includes(currentUser.rol)) {
+    if (!currentUser || !['superadmin', 'admin', 'agente'].includes(currentUser.rol)) {
       return NextResponse.json(
-        { error: 'No autorizado - Solo superadmin o admin puede eliminar comunicaciones' },
+        { error: 'No autorizado - Solo superadmin, admin o agente puede eliminar comunicaciones' },
         { status: 401 }
       )
     }
@@ -18,37 +18,35 @@ export async function DELETE(request: NextRequest) {
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
-        { error: 'IDs inválidos' },
+        { error: 'IDs invalidos' },
         { status: 400 }
       )
     }
 
-    try {
-      const resultado = await prisma.comunicacion.deleteMany({
-        where: {
-          id: {
-            in: ids
-          }
-        }
-      })
-
-      return NextResponse.json({
-        mensaje: `${resultado.count} comunicaciones eliminadas correctamente`,
-        eliminadas: resultado.count
-      })
-
-    } catch (error) {
-      console.error('Error al eliminar comunicaciones:', error)
-      return NextResponse.json(
-        { error: 'Error al eliminar comunicaciones' },
-        { status: 500 }
-      )
+    const where: any = {
+      id: { in: ids }
     }
 
+    if (currentUser.rol === 'admin') {
+      where.cliente = {
+        inmobiliariaId: currentUser.inmobiliariaId || '__sin_inmobiliaria__'
+      }
+    } else if (currentUser.rol === 'agente') {
+      where.cliente = {
+        usuarioId: currentUser.id
+      }
+    }
+
+    const resultado = await prisma.comunicacion.deleteMany({ where })
+
+    return NextResponse.json({
+      mensaje: `${resultado.count} comunicaciones eliminadas correctamente`,
+      eliminadas: resultado.count
+    })
   } catch (error) {
-    console.error('Error general:', error)
+    console.error('Error al eliminar comunicaciones:', error)
     return NextResponse.json(
-      { error: 'Error del servidor' },
+      { error: 'Error al eliminar comunicaciones' },
       { status: 500 }
     )
   }

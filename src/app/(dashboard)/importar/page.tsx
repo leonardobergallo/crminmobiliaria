@@ -206,18 +206,23 @@ export default function ImportarPage() {
                 </>
               ) : (
                 <>
-                  <p className="font-medium">Columnas recomendadas para clientes y consultas:</p>
+                  <p className="font-medium">Columnas recomendadas para clientes y consultas (nuevo formato):</p>
                   <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded border border-blue-200">
                     <div>- cliente o nombre</div>
                     <div>- telefono</div>
                     <div>- email</div>
                     <div>- notasCliente</div>
                     <div>- origen</div>
-                    <div>- presupuesto</div>
+                    <div>- prioridad (ALTA/MEDIA/BAJA)</div>
                     <div>- moneda</div>
+                    <div>- presupuestoDesde</div>
+                    <div>- presupuestoHasta</div>
                     <div>- tipoPropiedad</div>
-                    <div>- ubicacion</div>
+                    <div>- provincia</div>
+                    <div>- ciudad</div>
+                    <div>- barrio</div>
                     <div>- dormitoriosMin</div>
+                    <div>- cochera</div>
                     <div>- estado</div>
                     <div>- observaciones</div>
                   </div>

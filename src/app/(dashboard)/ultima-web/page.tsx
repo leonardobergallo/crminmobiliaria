@@ -20,6 +20,8 @@ const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
 export default function UltimaWebPage() {
   const router = useRouter()
   const [payload, setPayload] = useState<UltimaWebPayload | null>(null)
+  const [scrapedPage, setScrapedPage] = useState(1)
+  const SCRAPED_PAGE_SIZE = 10
 
   useEffect(() => {
     try {
@@ -36,6 +38,12 @@ export default function UltimaWebPage() {
 
   const resultado = payload?.data
   const busquedaParseada = resultado?.busquedaParseada
+  const scrapedItems = Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems : []
+  const scrapedTotalPages = Math.max(1, Math.ceil(scrapedItems.length / SCRAPED_PAGE_SIZE))
+  const scrapedItemsPaginados = scrapedItems.slice(
+    (scrapedPage - 1) * SCRAPED_PAGE_SIZE,
+    scrapedPage * SCRAPED_PAGE_SIZE
+  )
 
   const handleNuevaBusquedaPreCargada = () => {
     if (!busquedaParseada) {
@@ -144,8 +152,36 @@ export default function UltimaWebPage() {
               <CardHeader>
                 <CardTitle>Oportunidades en Portales ({resultado.scrapedItems.length})</CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {resultado.scrapedItems.map((item: any, idx: number) => (
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>
+                    Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
+                    {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItems.length)} de {scrapedItems.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
+                      disabled={scrapedPage <= 1}
+                    >
+                      Anterior
+                    </Button>
+                    <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
+                      disabled={scrapedPage >= scrapedTotalPages}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {scrapedItemsPaginados.map((item: any, idx: number) => (
                   <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
                     {item?.img ? (
                       <img
@@ -177,6 +213,7 @@ export default function UltimaWebPage() {
                     </div>
                   </div>
                 ))}
+                </div>
               </CardContent>
             </Card>
           )}

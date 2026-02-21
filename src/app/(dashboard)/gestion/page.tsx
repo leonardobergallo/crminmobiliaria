@@ -211,7 +211,7 @@ function GestionClienteContent() {
               if (prop.tipo === 'externo') {
                 payload.urlExterna = prop.item.url
                 payload.tituloExterno = prop.item.titulo
-                payload.mensaje = `Propiedad externa seleccionada desde análisis: ${prop.item.titulo}`
+                payload.mensaje = `Propiedad externa seleccionada desde analisis: ${prop.item.titulo}`
               } else if (prop.item.id) {
                 payload.propiedadId = prop.item.id
               }
@@ -243,7 +243,6 @@ function GestionClienteContent() {
   const enviarPropiedadesWhatsApp = (items: any[], tipo: 'enviados' | 'sugerencias') => {
     if (!items || items.length === 0 || !clienteSeleccionado) return
 
-    // Construir cabecera de búsqueda (usando la búsqueda de Sugerencias si existe)
     let tituloBusqueda = 'Propiedades Seleccionadas'
     const b = sugerencias?.busqueda
     if (b) {
@@ -256,31 +255,50 @@ function GestionClienteContent() {
       if (partes.length > 0) tituloBusqueda = partes.join(' - ')
     }
 
-    let texto = `*🔍 Búsqueda: ${tituloBusqueda}*\n\n`
-    texto += `*Oportunidades Encontradas para ${clienteSeleccionado.nombreCompleto}* 🏠\n\n`
-    
+    const tituloDesdeUrl = (url: string): string => {
+      try {
+        const clean = decodeURIComponent(String(url || '').split('?')[0])
+        const last = clean.split('/').filter(Boolean).pop() || ''
+        const slug = last
+          .replace(/\.html?$/i, '')
+          .replace(/^[a-z0-9]+-/i, '')
+          .replace(/[-_]+/g, ' ')
+          .trim()
+        if (!slug) return 'Propiedad'
+        return slug.charAt(0).toUpperCase() + slug.slice(1)
+      } catch {
+        return 'Propiedad'
+      }
+    }
+
+    let texto = `*Busqueda: ${tituloBusqueda}*\n\n`
+    texto += `*Oportunidades Encontradas para ${clienteSeleccionado.nombreCompleto}*\n\n`
+
     items.forEach((item) => {
       const prop = tipo === 'sugerencias' ? item : item.propiedad
-      const titulo = prop ? (prop.titulo || prop.ubicacion) : (item.tituloExterno || item.urlExterna || 'Propiedad')
-      const precio = prop ? (prop.precio ? `${prop.moneda || 'USD'} ${prop.precio.toLocaleString()}` : 'Consultar') : 'Consultar'
       const url = prop ? (prop.urlMls || '') : (item.urlExterna || '')
+      const titulo = prop
+        ? (prop.titulo || prop.ubicacion || 'Propiedad')
+        : (item.tituloExterno || (url ? tituloDesdeUrl(url) : 'Propiedad'))
+      const precioExacto = prop && typeof prop.precio === 'number' && Number.isFinite(prop.precio)
+      const precio = precioExacto ? `${prop.moneda || 'USD'} ${prop.precio.toLocaleString()}` : null
       const ubicacion = prop ? (prop.zona || prop.ubicacion) : 'Ver en el link'
 
-      texto += `*${precio}*\n`
-      texto += `💰 ${precio}\n`
-      texto += `📍 ${ubicacion}\n`
-      if (url) texto += `🔗 ${url}\n`
+      texto += `*${titulo}*\n`
+      if (precio) texto += `Precio: ${precio}\n`
+      texto += `Ubicacion: ${ubicacion}\n`
+      if (url) texto += `Link: ${url}\n`
       texto += `\n`
     })
 
     const mensajeFinal = texto.trim()
     const telefono = clienteSeleccionado.telefono?.replace(/\D/g, '') || ''
-    
+
     if (telefono) {
       window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensajeFinal)}`, '_blank')
     } else {
       navigator.clipboard.writeText(mensajeFinal)
-      alert('¡Lista armada y copiada! (Cliente sin teléfono registrado)')
+      alert('Lista armada y copiada! (Cliente sin telefono registrado)')
     }
   }
 
@@ -632,7 +650,7 @@ function GestionClienteContent() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-slate-900">📱 Gestión de Cliente</h1>
+      <h1 className="text-3xl font-bold text-slate-900">Gestion de Cliente</h1>
       <Card className="border-slate-200 bg-slate-50">
         <CardContent className="pt-4">
           <div className="text-sm text-slate-700">
@@ -657,7 +675,7 @@ function GestionClienteContent() {
                     variant="destructive"
                     onClick={() => eliminarSeleccionados('clientes')}
                   >
-                    🗑️ Eliminar ({clientesAEliminar.size})
+                    Eliminar ({clientesAEliminar.size})
                   </Button>
                 )}
                 <Button 
@@ -715,7 +733,7 @@ function GestionClienteContent() {
           {!clienteSeleccionado ? (
             <Card>
               <CardContent className="py-12 text-center text-slate-500">
-                👈 Selecciona un cliente para ver su historial
+                Selecciona un cliente para ver su historial
               </CardContent>
             </Card>
           ) : (
@@ -728,15 +746,15 @@ function GestionClienteContent() {
                       <h2 className="text-2xl font-bold">{clienteSeleccionado.nombreCompleto}</h2>
                       <div className="flex gap-4 mt-1 text-blue-100">
                         {clienteSeleccionado.telefono && (
-                          <span>📞 {clienteSeleccionado.telefono}</span>
+                          <span>{clienteSeleccionado.telefono}</span>
                         )}
                         {clienteSeleccionado.email && (
-                          <span>✉️ {clienteSeleccionado.email}</span>
+                          <span>{clienteSeleccionado.email}</span>
                         )}
                       </div>
                       {propSeleccionadasFromUrl && (
                         <div className="mt-2 text-sm text-blue-200">
-                          ✅ Se han registrado {propSeleccionadasFromUrl ? 'propiedades seleccionadas' : ''} desde el análisis
+                          Se han registrado {propSeleccionadasFromUrl ? 'propiedades seleccionadas' : ''} desde el analisis
                         </div>
                       )}
                     </div>
@@ -746,7 +764,7 @@ function GestionClienteContent() {
                           onClick={abrirWhatsApp}
                           className="bg-green-500 hover:bg-green-600"
                         >
-                          💬 WhatsApp
+                          WhatsApp
                         </Button>
                       )}
                     </div>
@@ -755,7 +773,7 @@ function GestionClienteContent() {
                   <div className="flex gap-6 mt-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold">{busquedas.length}</div>
-                      <div className="text-xs text-blue-100">Búsquedas</div>
+                      <div className="text-xs text-blue-100">Busquedas</div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold">{envios.length}</div>
@@ -771,7 +789,7 @@ function GestionClienteContent() {
                     </div>
                     {propSeleccionadasFromUrl && (
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-yellow-300">⚡</div>
+                        <div className="text-2xl font-bold text-yellow-300"></div>
                         <div className="text-xs text-yellow-200">Nuevas</div>
                       </div>
                     )}
@@ -786,48 +804,48 @@ function GestionClienteContent() {
                   onClick={() => setTab('busquedas')}
                   size="sm"
                 >
-                  🔍 Búsquedas ({busquedas.length})
+                  Busquedas ({busquedas.length})
                 </Button>
                 <Button
                   variant={tab === 'sugerencias' ? 'default' : 'outline'}
                   onClick={() => setTab('sugerencias')}
                   size="sm"
                 >
-                  🎯 Sugerencias ({((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0))})
+                  Sugerencias ({((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0))})
                 </Button>
                 <Button
                   variant={tab === 'envios' ? 'default' : 'outline'}
                   onClick={() => setTab('envios')}
                   size="sm"
                 >
-                  📤 Historial de Propiedades ({envios.length})
+                  Historial de Propiedades ({envios.length})
                 </Button>
                 <Button
                   variant={tab === 'comunicaciones' ? 'default' : 'outline'}
                   onClick={() => setTab('comunicaciones')}
                   size="sm"
                 >
-                  💬 Notas / Coms ({comunicaciones.length})
+                  Notas / Coms ({comunicaciones.length})
                 </Button>
               </div>
 
               {propSeleccionadasFromUrl && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center gap-2 text-yellow-800">
-                    <span className="text-xl">⚡</span>
+                    <span className="text-xl"></span>
                     <div>
-                      <h3 className="font-semibold">Propiedades seleccionadas desde análisis</h3>
-                      <p className="text-sm">Se han registrado automáticamente las propiedades que seleccionaste en el análisis de búsqueda.</p>
+                      <h3 className="font-semibold">Propiedades seleccionadas desde analisis</h3>
+                      <p className="text-sm">Se han registrado automáticamente las propiedades que seleccionaste en el analisis de búsqueda.</p>
                     </div>
                   </div>
                 </div>
               )}
-              {/* Tab: Búsquedas */}
+              {/* Tab: Busquedas */}
               {tab === 'busquedas' && (
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center flex-wrap gap-2">
-                      <CardTitle>🔍 Búsquedas del Cliente ({busquedas.length})</CardTitle>
+                      <CardTitle>Busquedas del Cliente ({busquedas.length})</CardTitle>
                       <div className="flex gap-2">
                         {busquedasAEliminar.size > 0 && (
                           <Button 
@@ -835,7 +853,7 @@ function GestionClienteContent() {
                             variant="destructive"
                             onClick={() => eliminarSeleccionados('busquedas')}
                           >
-                            🗑️ Eliminar ({busquedasAEliminar.size})
+                            Eliminar ({busquedasAEliminar.size})
                           </Button>
                         )}
                         <Button 
@@ -881,7 +899,7 @@ function GestionClienteContent() {
                               <option value="ACTIVA">Activa</option>
                               <option value="PERSONALIZADA">Personalizada</option>
                               <option value="CALIFICADA_EFECTIVO">Calificada (Efectivo)</option>
-                              <option value="CALIFICADA_CREDITO">Calificada (Crédito)</option>
+                              <option value="CALIFICADA_CREDITO">Calificada (Credito)</option>
                             </select>
                           </div>
                           <div>
@@ -1048,7 +1066,7 @@ function GestionClienteContent() {
                                 {mensajeOriginal && (
                                   <div className="mb-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-r shadow-sm">
                                     <div className="flex items-start gap-2">
-                                      <span className="text-xl">📱</span>
+                                      <span className="text-xl"></span>
                                       <div className="flex-1">
                                         <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Mensaje Original de WhatsApp:</p>
                                         <p className="text-sm text-slate-800 font-medium whitespace-pre-wrap leading-relaxed bg-white p-3 rounded border border-blue-200">{mensajeOriginal}</p>
@@ -1061,25 +1079,25 @@ function GestionClienteContent() {
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                   {busqueda.ubicacionPreferida && (
                                     <div className="bg-slate-50 p-2 rounded">
-                                      <p className="text-xs text-slate-500 mb-0.5">📍 Zona</p>
+                                      <p className="text-xs text-slate-500 mb-0.5">Zona</p>
                                       <p className="text-sm font-medium text-slate-900">{busqueda.ubicacionPreferida}</p>
                                     </div>
                                   )}
                                   {busqueda.dormitoriosMin && (
                                     <div className="bg-slate-50 p-2 rounded">
-                                      <p className="text-xs text-slate-500 mb-0.5">🛏️ Dormitorios</p>
+                                      <p className="text-xs text-slate-500 mb-0.5">Dormitorios</p>
                                       <p className="text-sm font-medium text-slate-900">{busqueda.dormitoriosMin}+</p>
                                     </div>
                                   )}
                                   {busqueda.cochera && (
                                     <div className="bg-slate-50 p-2 rounded">
-                                      <p className="text-xs text-slate-500 mb-0.5">🚗 Cochera</p>
+                                      <p className="text-xs text-slate-500 mb-0.5">Cochera</p>
                                       <p className="text-sm font-medium text-slate-900">{busqueda.cochera}</p>
                                     </div>
                                   )}
                                   {busqueda.moneda && busqueda.presupuestoValor && (
                                     <div className="bg-slate-50 p-2 rounded">
-                                      <p className="text-xs text-slate-500 mb-0.5">💰 Presupuesto</p>
+                                      <p className="text-xs text-slate-500 mb-0.5">Presupuesto</p>
                                       <p className="text-sm font-medium text-slate-900">{busqueda.moneda} {busqueda.presupuestoValor.toLocaleString()}</p>
                                     </div>
                                   )}
@@ -1088,14 +1106,14 @@ function GestionClienteContent() {
                                 {/* Observaciones (sin mensaje original) */}
                                 {observacionesSinMensaje && (
                                   <div className="mb-2">
-                                    <p className="text-xs font-semibold text-slate-500 mb-1">📝 Detalles:</p>
+                                    <p className="text-xs font-semibold text-slate-500 mb-1">Detalles:</p>
                                     <p className="text-sm text-slate-600 whitespace-pre-wrap">{observacionesSinMensaje}</p>
                                   </div>
                                 )}
 
                                 <p className="text-xs text-slate-500 mt-2">
                                   Creada: {new Date(busqueda.createdAt).toLocaleDateString('es-AR')}
-                                  {busqueda.usuario && ` • Por: ${busqueda.usuario.nombre}`}
+                                  {busqueda.usuario && `  -  Por: ${busqueda.usuario.nombre}`}
                                 </p>
                               </div>
                             </div>
@@ -1116,9 +1134,9 @@ function GestionClienteContent() {
                                             {match.propiedad.titulo || match.propiedad.ubicacion}
                                           </div>
                                           <div className="text-xs text-slate-600">
-                                            {match.propiedad.tipo} • {match.propiedad.zona || match.propiedad.ubicacion}
-                                            {match.propiedad.dormitorios && ` • ${match.propiedad.dormitorios} dorm`}
-                                            {match.propiedad.precio && ` • ${match.propiedad.moneda} ${match.propiedad.precio.toLocaleString()}`}
+                                            {match.propiedad.tipo}  -  {match.propiedad.zona || match.propiedad.ubicacion}
+                                            {match.propiedad.dormitorios && `  -  ${match.propiedad.dormitorios} dorm`}
+                                            {match.propiedad.precio && `  -  ${match.propiedad.moneda} ${match.propiedad.precio.toLocaleString()}`}
                                           </div>
                                         </div>
                                         <span className={`text-xs px-2 py-0.5 rounded ${
@@ -1153,7 +1171,7 @@ function GestionClienteContent() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>🎯 Propiedades para Enviar</CardTitle>
+                      <CardTitle>Propiedades para Enviar</CardTitle>
                       <div className="flex gap-2">
                         {((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0)) > 0 && (
                           <Button 
@@ -1161,7 +1179,7 @@ function GestionClienteContent() {
                             className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                             onClick={() => enviarPropiedadesWhatsApp([...(sugerencias?.sugerencias || []), ...(sugerencias?.adicionales || [])], 'sugerencias')}
                           >
-                            📱 Enviar todo por WhatsApp
+                            Enviar todo por WhatsApp
                           </Button>
                         )}
                         <Button 
@@ -1229,10 +1247,10 @@ function GestionClienteContent() {
                               <div className="flex-1">
                                 <div className="font-medium">{prop.titulo || prop.ubicacion}</div>
                                 <div className="text-sm text-slate-600">
-                                  {prop.tipo} • {prop.zona || prop.ubicacion} • 
-                                  {prop.dormitorios && ` ${prop.dormitorios} dorm •`}
+                                  {prop.tipo}  -  {prop.zona || prop.ubicacion}  -  
+                                  {prop.dormitorios && ` ${prop.dormitorios} dorm  - `}
                                   {prop.precio && ` ${prop.moneda} ${prop.precio.toLocaleString()}`}
-                                  {prop.aptaCredito && <span className="ml-2 text-green-600">✓ Crédito</span>}
+                                  {prop.aptaCredito && <span className="ml-2 text-green-600">Credito</span>}
                                 </div>
                               </div>
                               <div className="flex gap-2">
@@ -1246,7 +1264,7 @@ function GestionClienteContent() {
                                   onClick={() => handleEnviarPropiedad(prop)}
                                   className="bg-green-600 hover:bg-green-700"
                                 >
-                                  📤 Enviar
+                                  Enviar
                                 </Button>
                               </div>
                             </div>
@@ -1263,7 +1281,7 @@ function GestionClienteContent() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>📤 Propiedades Enviadas</CardTitle>
+                      <CardTitle>Propiedades Enviadas</CardTitle>
                       <div className="flex gap-2">
                         {enviosAEliminar.size > 0 && (
                           <Button 
@@ -1271,7 +1289,7 @@ function GestionClienteContent() {
                             variant="destructive"
                             onClick={() => eliminarSeleccionados('envios')}
                           >
-                            🗑️ Eliminar ({enviosAEliminar.size})
+                            Eliminar ({enviosAEliminar.size})
                           </Button>
                         )}
                         <Button 
@@ -1287,7 +1305,7 @@ function GestionClienteContent() {
                             className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
                             onClick={() => enviarPropiedadesWhatsApp(envios, 'enviados')}
                           >
-                            📱 Re-enviar Historial
+                            Re-enviar Historial
                           </Button>
                         )}
                       </div>
@@ -1328,7 +1346,7 @@ function GestionClienteContent() {
                                   {envio.propiedad?.titulo || envio.propiedad?.ubicacion || envio.tituloExterno || envio.urlExterna}
                                 </div>
                                 <div className="text-sm text-slate-600">
-                                  📅 {new Date(envio.fechaEnvio).toLocaleDateString('es-AR')} • 
+                                  {new Date(envio.fechaEnvio).toLocaleDateString('es-AR')}  -  
                                   {envio.canal}
                                 </div>
                                 {envio.urlExterna && (
@@ -1349,10 +1367,10 @@ function GestionClienteContent() {
                                   }`}
                                 >
                                   <option value="">Sin respuesta</option>
-                                  <option value="INTERESADO">✓ Interesado</option>
-                                  <option value="NO_INTERESADO">✗ No interesado</option>
-                                  <option value="VISITA_PROGRAMADA">📅 Visita programada</option>
-                                  <option value="SIN_RESPUESTA">⏳ Sin respuesta</option>
+                                  <option value="INTERESADO">Interesado</option>
+                                  <option value="NO_INTERESADO">No interesado</option>
+                                  <option value="VISITA_PROGRAMADA">Visita programada</option>
+                                  <option value="SIN_RESPUESTA">â³ Sin respuesta</option>
                                 </select></div>
                               </div>
                             </div>
@@ -1369,7 +1387,7 @@ function GestionClienteContent() {
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
-                      <CardTitle>💬 Historial de Comunicaciones</CardTitle>
+                      <CardTitle>Historial de Comunicaciones</CardTitle>
                       <div className="flex gap-2">
                         {comunicacionesAEliminar.size > 0 && (
                           <Button 
@@ -1377,7 +1395,7 @@ function GestionClienteContent() {
                             variant="destructive"
                             onClick={() => eliminarSeleccionados('comunicaciones')}
                           >
-                            🗑️ Eliminar ({comunicacionesAEliminar.size})
+                            Eliminar ({comunicacionesAEliminar.size})
                           </Button>
                         )}
                         <Button 
@@ -1494,16 +1512,16 @@ function GestionClienteContent() {
                                 <div className="flex-1">
                                 <div className="flex gap-2 items-center">
                                   <span className="text-lg">
-                                    {com.tipo === 'WHATSAPP' ? '💬' : 
-                                     com.tipo === 'LLAMADA' ? '📞' : 
-                                     com.tipo === 'EMAIL' ? '✉️' : 
-                                     com.tipo === 'VISITA' ? '🏠' : '📝'}
+                                    {com.tipo === 'WHATSAPP' ? 'WA' :
+                                     com.tipo === 'LLAMADA' ? 'TEL' :
+                                     com.tipo === 'EMAIL' ? 'MAIL' :
+                                     com.tipo === 'VISITA' ? 'VISITA' : 'NOTA'}
                                   </span>
                                   <span className="font-medium">{com.tipo}</span>
                                   <span className={`text-xs px-2 py-0.5 rounded ${
                                     com.direccion === 'SALIENTE' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                                   }`}>
-                                    {com.direccion === 'SALIENTE' ? '→ Saliente' : '← Entrante'}
+                                    {com.direccion === 'SALIENTE' ? '-> Saliente' : '<- Entrante'}
                                   </span>
                                   {com.resultado && (
                                     <span className="text-xs px-2 py-0.5 rounded bg-slate-200">
@@ -1544,6 +1562,8 @@ export default function GestionClientePage() {
     </Suspense>
   )
 }
+
+
 
 
 

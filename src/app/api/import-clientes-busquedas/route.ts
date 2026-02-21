@@ -87,6 +87,29 @@ function inferMoneda(presupuestoTexto: string | null, moneda: string | null): st
   return null
 }
 
+function normalizePrioridad(value: string | null): 'ALTA' | 'MEDIA' | 'BAJA' | null {
+  if (!value) return null
+  const normalized = normalizeKey(value)
+  if (normalized.includes('alta')) return 'ALTA'
+  if (normalized.includes('media')) return 'MEDIA'
+  if (normalized.includes('baja')) return 'BAJA'
+  return null
+}
+
+function upsertPrioridadInPlanillaRef(raw: string | null, prioridad: 'ALTA' | 'MEDIA' | 'BAJA' | null): string | null {
+  const parts = String(raw || '')
+    .split('|')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter((p) => !/^PRIORIDAD:/i.test(p))
+
+  if (prioridad) {
+    parts.push(`PRIORIDAD:${prioridad}`)
+  }
+
+  return parts.length > 0 ? parts.join('|') : null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const currentUser = await getCurrentUser()
@@ -260,21 +283,53 @@ export async function POST(req: NextRequest) {
         }
 
         const origen = normalizeOrigen(getString(rowMap, ['origen', 'tipoOrigen']))
-        const presupuestoTexto =
+        const monedaInput = getString(rowMap, ['moneda', 'currency', 'divisa'])
+        const presupuestoTextoRaw =
           getString(rowMap, ['presupuestoTexto', 'presupuesto', 'rangoPresupuesto', 'consulta']) ?? null
+        const presupuestoDesde = parseNumber(
+          getString(rowMap, ['presupuestoDesde', 'precioDesde', 'desde', 'presupuestoMin', 'minimo'])
+        )
+        const presupuestoHasta = parseNumber(
+          getString(rowMap, ['presupuestoHasta', 'precioHasta', 'hasta', 'presupuestoMax', 'maximo', 'monto'])
+        )
+        const monedaInferida = inferMoneda(presupuestoTextoRaw, monedaInput)
+        const moneda = monedaInferida || 'USD'
+
+        const presupuestoTexto =
+          presupuestoTextoRaw ||
+          (presupuestoDesde !== null && presupuestoHasta !== null
+            ? `${moneda} ${presupuestoDesde}-${presupuestoHasta}`
+            : presupuestoHasta !== null
+              ? `${moneda} ${presupuestoHasta}`
+              : presupuestoDesde !== null
+                ? `${moneda} desde ${presupuestoDesde}`
+                : null)
+
         const presupuestoValorRaw = getString(rowMap, ['presupuestoValor', 'presupuestoMax', 'monto'])
-        const presupuestoValor = parseNumber(presupuestoValorRaw ?? presupuestoTexto)
-        const moneda = inferMoneda(presupuestoTexto, getString(rowMap, ['moneda']))
+        const presupuestoValor =
+          presupuestoHasta ??
+          parseNumber(presupuestoValorRaw ?? presupuestoTexto)
         const tipoPropiedad = normalizeTipoPropiedad(
           getString(rowMap, ['tipoPropiedad', 'tipo', 'propiedad', 'tipo propiedad'])
         )
+        const barrio = getString(rowMap, ['barrio', 'zona'])
+        const ciudad = getString(rowMap, ['ciudad', 'localidad'])
+        const provincia = getString(rowMap, ['provincia'])
+        const ubicacionDirecta =
+          getString(rowMap, ['ubicacionPreferida', 'ubicacion']) ?? null
         const ubicacionPreferida =
-          getString(rowMap, ['ubicacionPreferida', 'ubicacion', 'zona', 'barrio', 'ciudad']) ?? null
+          ubicacionDirecta ||
+          [barrio, ciudad, provincia].filter(Boolean).join(', ') ||
+          null
         const dormitoriosMin = parseNumber(getString(rowMap, ['dormitoriosMin', 'dormitorios']))
         const cochera = getString(rowMap, ['cochera'])
+        const prioridad = normalizePrioridad(getString(rowMap, ['prioridad', 'priority']))
         const finalidad = getString(rowMap, ['finalidad'])
         const observaciones = getString(rowMap, ['observaciones', 'detalleConsulta', 'consulta']) ?? null
-        const planillaRef = getString(rowMap, ['planillaRef', 'referencia', 'idExterno'])
+        const planillaRef = upsertPrioridadInPlanillaRef(
+          getString(rowMap, ['planillaRef', 'referencia', 'idExterno']),
+          prioridad
+        )
         const estado = normalizeEstado(getString(rowMap, ['estado']))
 
         const existeBusqueda = await prisma.busqueda.findFirst({

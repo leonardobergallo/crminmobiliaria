@@ -28,6 +28,7 @@ interface Busqueda {
   ubicacionPreferida?: string | null
   dormitoriosMin?: number | null
   observaciones?: string | null
+  planillaRef?: string | null
   estado: string
   createdAt: string
 }
@@ -39,6 +40,7 @@ interface CurrentUser {
 }
 
 type PrioridadNivel = 'ALTA' | 'MEDIA' | 'BAJA'
+const PRIORIDAD_TOKEN_REGEX = /(?:^|\|)PRIORIDAD:(ALTA|MEDIA|BAJA)(?:\||$)/i
 
 const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
 const MERCADO_UNICO_INMOBILIARIAS = [
@@ -230,6 +232,8 @@ export default function BusquedasPage() {
   const [formData, setFormData] = useState({
     clienteId: '',
     origen: 'ACTIVA',
+    prioridad: 'MEDIA' as PrioridadNivel,
+    planillaRefRaw: '',
     moneda: 'USD',
     presupuestoDesde: '',
     presupuestoHasta: '',
@@ -247,6 +251,8 @@ export default function BusquedasPage() {
     setFormData({
       clienteId: '',
       origen: 'ACTIVA',
+      prioridad: 'MEDIA',
+      planillaRefRaw: '',
       moneda: 'USD',
       presupuestoDesde: '',
       presupuestoHasta: '',
@@ -284,12 +290,26 @@ export default function BusquedasPage() {
     return { moneda, desde: '', hasta: '' }
   }
 
+  const upsertPrioridadEnPlanillaRef = (raw: string, prioridad: PrioridadNivel) => {
+    const parts = String(raw || '')
+      .split('|')
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .filter((p) => !/^PRIORIDAD:/i.test(p))
+    parts.push(`PRIORIDAD:${prioridad}`)
+    return parts.join('|')
+  }
+
   const abrirEdicion = (busqueda: Busqueda) => {
     const { provincia, ciudad, barrio } = parseUbicacion(busqueda.ubicacionPreferida)
     const { moneda, desde, hasta } = parsePresupuesto(busqueda.presupuestoTexto)
+    const matchPrioridad = String(busqueda.planillaRef || '').match(PRIORIDAD_TOKEN_REGEX)
+    const prioridadManual = (matchPrioridad?.[1]?.toUpperCase() || 'MEDIA') as PrioridadNivel
     setFormData({
       clienteId: busqueda.cliente.id || '',
       origen: busqueda.origen || 'ACTIVA',
+      prioridad: prioridadManual,
+      planillaRefRaw: busqueda.planillaRef || '',
       moneda,
       presupuestoDesde: desde,
       presupuestoHasta: hasta,
@@ -402,6 +422,10 @@ export default function BusquedasPage() {
         ...prev,
         clienteId: typeof draft.clienteId === 'string' ? draft.clienteId : prev.clienteId,
         origen: typeof draft.origen === 'string' ? draft.origen : prev.origen,
+        prioridad:
+          draft.prioridad === 'ALTA' || draft.prioridad === 'MEDIA' || draft.prioridad === 'BAJA'
+            ? draft.prioridad
+            : prev.prioridad,
         moneda: typeof draft.moneda === 'string' ? draft.moneda : prev.moneda,
         presupuestoDesde: typeof draft.presupuestoDesde === 'string' ? draft.presupuestoDesde : prev.presupuestoDesde,
         presupuestoHasta: typeof draft.presupuestoHasta === 'string' ? draft.presupuestoHasta : prev.presupuestoHasta,
@@ -548,6 +572,10 @@ export default function BusquedasPage() {
       const payload: any = {
         clienteId: formData.clienteId.trim(),
         origen: (formData.origen || 'ACTIVA').trim(),
+        planillaRef: upsertPrioridadEnPlanillaRef(
+          formData.planillaRefRaw,
+          (formData.prioridad || 'MEDIA') as PrioridadNivel
+        ),
       }
 
       // Presupuesto (rango)
@@ -625,7 +653,26 @@ export default function BusquedasPage() {
            'Sin asignar'
   }
 
+  const getPrioridadManual = (busqueda: Busqueda): PrioridadNivel | null => {
+    const match = String(busqueda.planillaRef || '').match(PRIORIDAD_TOKEN_REGEX)
+    const nivel = match?.[1]?.toUpperCase()
+    if (nivel === 'ALTA' || nivel === 'MEDIA' || nivel === 'BAJA') return nivel
+    return null
+  }
+
+  const canEditBusqueda = (busqueda: Busqueda): boolean => {
+    if (!currentUser) return false
+    if (currentUser.rol === 'admin' || currentUser.rol === 'superadmin') return true
+    return busqueda.usuario?.id === currentUser.id || busqueda.cliente.usuario?.id === currentUser.id
+  }
+
   const getPrioridadBusqueda = (busqueda: Busqueda): { nivel: PrioridadNivel; score: number; motivo: string } => {
+    const manual = getPrioridadManual(busqueda)
+    if (manual) {
+      const score = manual === 'ALTA' ? 100 : manual === 'MEDIA' ? 60 : 20
+      return { nivel: manual, score, motivo: 'Prioridad manual' }
+    }
+
     let score = 0
     const motivos: string[] = []
 
@@ -790,10 +837,6 @@ export default function BusquedasPage() {
 
     return [
       { id: 'google', label: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent(q)}` },
-      { id: 'site_zp', label: 'ZonaProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:zonaprop.com.ar ${q}`)}` },
-      { id: 'site_ap', label: 'ArgenProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:argenprop.com ${q}`)}` },
-      { id: 'site_ml', label: 'MercadoLibre (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:inmuebles.mercadolibre.com.ar ${q}`)}` },
-      { id: 'site_rx', label: 'Remax (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:remax.com.ar ${q}`)}` },
       { id: 'site_c21', label: 'Century 21 (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:century21.com.ar ${q}`)}` },
       { id: 'mercadounico', label: 'MercadoUnico', url: `https://www.google.com/search?q=${encodeURIComponent(`mercadounico inmobiliaria santa fe capital ${q}`)}` },
       { id: 'inmo_sf', label: 'Inmobiliarias Santa Fe', url: `https://www.google.com/search?q=${encodeURIComponent(`inmobiliarias en santa fe capital ${tipo}`)}` },
@@ -1062,6 +1105,23 @@ export default function BusquedasPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Prioridad
+                </label>
+                <select
+                  value={formData.prioridad}
+                  onChange={(e) =>
+                    setFormData({ ...formData, prioridad: e.target.value as PrioridadNivel })
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                >
+                  <option value="ALTA">Alta</option>
+                  <option value="MEDIA">Media</option>
+                  <option value="BAJA">Baja</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1233,15 +1293,17 @@ export default function BusquedasPage() {
             <div><span className="font-semibold">Dormitorios min:</span> {busquedaEnVista.dormitoriosMin ?? '-'}</div>
             <div className="md:col-span-2"><span className="font-semibold">Observaciones:</span> {busquedaEnVista.observaciones || '-'}</div>
             <div className="md:col-span-2 flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => abrirEdicion(busquedaEnVista)}>
-                Editar
-              </Button>
+              {canEditBusqueda(busquedaEnVista) && (
+                <Button size="sm" variant="outline" onClick={() => abrirEdicion(busquedaEnVista)}>
+                  Editar
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => eliminarBusqueda(busquedaEnVista)}
                 className="border-red-300 text-red-700 hover:bg-red-50"
-                disabled={eliminandoBusquedaId === busquedaEnVista.id}
+                disabled={eliminandoBusquedaId === busquedaEnVista.id || !canEditBusqueda(busquedaEnVista)}
               >
                 {eliminandoBusquedaId === busquedaEnVista.id ? 'Eliminando...' : 'Eliminar'}
               </Button>
@@ -1284,9 +1346,11 @@ export default function BusquedasPage() {
                   <Button size="sm" variant="outline" onClick={() => setBusquedaEnVista(busqueda)}>
                     Ver
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => abrirEdicion(busqueda)}>
-                    Editar
-                  </Button>
+                  {canEditBusqueda(busqueda) && (
+                    <Button size="sm" variant="outline" onClick={() => abrirEdicion(busqueda)}>
+                      Editar
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1362,7 +1426,7 @@ export default function BusquedasPage() {
                 <TableHead>Presupuesto</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Origen</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead>Prioridad</TableHead>
                 {currentUser?.rol === 'admin' && <TableHead>Agente</TableHead>}
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -1389,8 +1453,16 @@ export default function BusquedasPage() {
                     <TableCell>{busqueda.tipoPropiedad || '-'}</TableCell>
                     <TableCell className="text-sm">{busqueda.origen}</TableCell>
                     <TableCell>
-                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-slate-200">
-                        {busqueda.estado}
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          getPrioridadBusqueda(busqueda).nivel === 'ALTA'
+                            ? 'bg-red-100 text-red-700'
+                            : getPrioridadBusqueda(busqueda).nivel === 'MEDIA'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {getPrioridadBusqueda(busqueda).nivel}
                       </span>
                     </TableCell>
                     {currentUser?.rol === 'admin' && (
@@ -1413,6 +1485,7 @@ export default function BusquedasPage() {
                           variant="outline"
                           onClick={() => abrirEdicion(busqueda)}
                           className="h-8 px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
+                          disabled={!canEditBusqueda(busqueda)}
                         >
                           Editar
                         </Button>
@@ -1421,7 +1494,7 @@ export default function BusquedasPage() {
                           variant="outline"
                           onClick={() => eliminarBusqueda(busqueda)}
                           className="h-8 px-3 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
-                          disabled={eliminandoBusquedaId === busqueda.id}
+                          disabled={eliminandoBusquedaId === busqueda.id || !canEditBusqueda(busqueda)}
                         >
                           {eliminandoBusquedaId === busqueda.id ? 'Eliminando...' : 'Eliminar'}
                         </Button>

@@ -86,6 +86,17 @@ function parseIntOrNull(value: unknown): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function esZonaAmpliaSantaFe(zona: string): boolean {
+  const z = zona.toLowerCase()
+  return (
+    z.includes('bulevar') ||
+    z.includes('boulevard') ||
+    z.includes('dentro de bulevares') ||
+    z.includes('dentro de bv') ||
+    z.includes('santa fe capital')
+  )
+}
+
 function aplicarFiltrosPortales(
   criterios: BusquedaParseada,
   filtros: FiltrosPortalesInput | null | undefined
@@ -259,36 +270,76 @@ function getScrapingHeaders(referer: string = 'https://www.google.com/') {
   }
 }
 
+function normalizeText(input: string): string {
+  return String(input || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
+function extractPriceFromText(text: string): string {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  const usd = normalized.match(/(?:u\$s|us\$|usd)\s*[\d\.\,]+/i)
+  if (usd?.[0]) return usd[0]
+  const ars = normalized.match(/\$\s*[\d\.\,]+/i)
+  if (ars?.[0]) return ars[0]
+  return ''
+}
+
+function safeAbsoluteUrl(href: string | undefined, base: string): string | null {
+  if (!href) return null
+  if (href.startsWith('http')) return href
+  if (!href.startsWith('/')) return `${base}/${href}`
+  return `${base}${href}`
+}
+
 async function fetchWithTimeout(url: string, options: any = {}, timeout: number = 8000) {
   // Soporte para Proxy de Scraping (opcional)
   const proxyUrl = process.env.SCRAPER_PROXY_URL
-  const finalUrl = proxyUrl 
-    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}url=${encodeURIComponent(url)}` 
-    : url
+  const withProxy = proxyUrl
+    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}url=${encodeURIComponent(url)}`
+    : null
 
-  const controller = new AbortController()
-  const id = setTimeout(() => {
-    console.warn(`Timeout de ${timeout}ms alcanzado para: ${url}`)
-    controller.abort()
-  }, timeout)
-  try {
-    // Forzar no-cache para evitar que Vercel guarde pÃƒÂ¡ginas de bloqueo
-    const response = await fetch(finalUrl, {
-      ...options,
-      cache: 'no-store',
-      signal: controller.signal
-    })
-    clearTimeout(id)
-    return response
-  } catch (error: any) {
-    clearTimeout(id)
-    if (error.name === 'AbortError') {
-      console.error(`PeticiÃƒÂ³n abortada (timeout) para: ${url}`)
-    } else {
-      console.error(`Error en fetch para ${url}:`, error.message)
+  const doFetch = async (targetUrl: string, mode: 'proxy' | 'direct') => {
+    const controller = new AbortController()
+    const id = setTimeout(() => {
+      console.warn(`Timeout de ${timeout}ms alcanzado para: ${url} (${mode})`)
+      controller.abort()
+    }, timeout)
+    try {
+      const response = await fetch(targetUrl, {
+        ...options,
+        cache: 'no-store',
+        signal: controller.signal
+      })
+      clearTimeout(id)
+      return response
+    } catch (error: any) {
+      clearTimeout(id)
+      if (error.name === 'AbortError') {
+        console.error(`PeticiÃƒÂ³n abortada (timeout) para: ${url} (${mode})`)
+      } else {
+        console.error(`Error en fetch para ${url} (${mode}):`, error.message)
+      }
+      return { ok: false, status: 0, statusText: error.message } as any
     }
-    return { ok: false, status: 0, statusText: error.message } as any
   }
+
+  if (withProxy) {
+    console.log(`[scraper] proxy:on -> ${url}`)
+    const proxied = await doFetch(withProxy, 'proxy')
+    const status = Number((proxied as any)?.status || 0)
+    if (proxied.ok || ![401, 403, 407, 429].includes(status)) {
+      return proxied
+    }
+
+    console.warn(`[scraper] proxy bloqueado (${status}) -> retry direct ${url}`)
+    return doFetch(url, 'direct')
+  }
+
+  console.log(`[scraper] proxy:off -> ${url}`)
+  return doFetch(url, 'direct')
 }
 
 // POST: Parsear mensaje de WhatsApp
@@ -322,8 +373,11 @@ export async function POST(request: NextRequest) {
         console.log('OPENAI_API_KEY no configurada, usando parser local...');
         busquedaParseada = parsearBusquedaLocal(mensaje);
       }
-    } catch (aiError) {
-      console.error('Error con el anÃƒÂ¡lisis de IA, usando fallback local:', aiError);
+    } catch (aiError: any) {
+      const code = aiError?.code || aiError?.type || 'ai_error'
+      const status = aiError?.status || 0
+      const msg = aiError?.message || 'sin detalle'
+      console.warn(`[IA fallback] ${code} status=${status} -> parser local (${msg})`)
       busquedaParseada = parsearBusquedaLocal(mensaje);
     }
 
@@ -436,6 +490,11 @@ export async function POST(request: NextRequest) {
       SCRAPED_MAX_TOTAL,
       SCRAPED_MAX_PER_PORTAL
     )
+    const fallbackPortales = construirFallbackPortalesDesdeLinks(busquedaParseada, webMatches as any)
+    const scrapedItemsFinalBase = scrapedDiversificado.length > 0
+      ? scrapedDiversificado
+      : fallbackPortales.slice(0, Math.min(20, SCRAPED_MAX_TOTAL))
+    const scrapedItemsFinal = scrapedItemsFinalBase.slice(0, 20)
     const portalStats = {
       mercadolibre: mlItems.length,
       argenprop: apItems.length,
@@ -443,7 +502,8 @@ export async function POST(request: NextRequest) {
       zonaprop: zpItems.length,
       buscainmueble: biItems.length,
       totalUnicos: uniqueScraped.length,
-      totalDiversificados: scrapedDiversificado.length,
+      totalDiversificados: Math.min(scrapedDiversificado.length, 20),
+      totalFallbackLinks: scrapedDiversificado.length === 0 ? fallbackPortales.length : 0,
     }
 
     return NextResponse.json({
@@ -451,7 +511,7 @@ export async function POST(request: NextRequest) {
       busquedaParseada,
       matches,
       webMatches,
-      scrapedItems: scrapedDiversificado,
+      scrapedItems: scrapedItemsFinal,
       portalStats,
       usandoIA,
       guardado: guardadoInfo
@@ -547,8 +607,11 @@ IMPORTANTE:
       notas: parsed.notas || `Procesado con IA. ${mensaje.substring(0, 100)}`,
       confianza: 90 // IA tiene mayor confianza
     }
-  } catch (error) {
-    console.error('Error en parseo con IA:', error)
+  } catch (error: any) {
+    const code = error?.code || error?.type || 'ai_error'
+    const status = error?.status || 0
+    const msg = error?.message || 'sin detalle'
+    console.warn(`[IA parse] ${code} status=${status}: ${msg}`)
     throw error
   }
 }
@@ -853,6 +916,9 @@ async function encontrarMatchesEnDb(
   const tieneCriteriosEspecificos = (criterios.tipoPropiedad && criterios.tipoPropiedad !== 'OTRO') || 
                                      criterios.presupuestoMax || 
                                      criterios.dormitoriosMin
+  const tieneSoloZonasAmplias =
+    criterios.zonas.length > 0 &&
+    criterios.zonas.every((z) => esZonaAmpliaSantaFe(String(z || '')))
   
   if (criterios.zonas.length > 0) {
     // Si solo tiene "Santa Fe Capital" por defecto SIN otros criterios, no buscar
@@ -861,6 +927,12 @@ async function encontrarMatchesEnDb(
                                   criterios.zonas[0].toLowerCase().includes('santa fe capital')
     
     if (!esSoloSantaFeDefault || tieneCriteriosEspecificos) {
+      // Evitar filtro de zona demasiado literal para etiquetas amplias
+      // como "Dentro de Bulevares": con criterios concretos ya aplicados
+      // (tipo/precio/dorms), esta zona debe funcionar como "Santa Fe Capital".
+      if (tieneSoloZonasAmplias && tieneCriteriosEspecificos) {
+        // no-op: dejamos que resuelvan tipo/precio/dormitorios
+      } else {
       // Buscar por zonas especÃƒÂ­ficas (mÃƒÂ¡s flexible)
       const zonaConditions = criterios.zonas.flatMap(z => {
         const condiciones: any[] = [
@@ -883,6 +955,7 @@ async function encontrarMatchesEnDb(
       })
       
       condicionesAND.push({ OR: zonaConditions })
+      }
     }
   }
 
@@ -1062,6 +1135,11 @@ function esItemDeSantaFe(item: { titulo?: string; ubicacion?: string; url?: stri
     return true
   }
 
+  // Fallback: si es un clasificado del portal y no contiene ciudades prohibidas, confiar en filtro previo del scraper.
+  if (texto.includes('zonaprop.com.ar/propiedades/') || texto.includes('argenprop.com/propiedad')) {
+    return true
+  }
+
   return false
 }
 
@@ -1083,6 +1161,27 @@ function diversificarPorPortal(
     if (resultado.length >= maxTotal) break
   }
   return resultado.slice(0, maxTotal)
+}
+
+function construirFallbackPortalesDesdeLinks(
+  criterios: BusquedaParseada,
+  links: Array<{ sitio?: string; titulo?: string; url?: string; categoria?: string }>
+) {
+  const ubicacionBase = criterios.zonas?.[0] || 'Santa Fe Capital'
+  const precioBase = 'Consultar'
+
+  return (links || [])
+    .filter((l) => l?.url && (l?.categoria === 'PORTALES' || l?.categoria === 'INMOBILIARIAS'))
+    .map((l) => ({
+      sitio: l.sitio || 'Portal',
+      titulo: l.titulo || `${l.sitio || 'Portal'}: busqueda filtrada`,
+      precio: precioBase,
+      ubicacion: ubicacionBase,
+      url: l.url!,
+      img: null,
+      origen: 'LINK_SUGERIDO',
+      esSugerido: true,
+    }))
 }
 
 // ----------------------------------------------------------------------
@@ -1145,10 +1244,95 @@ function generarLinksExternos(criterios: BusquedaParseada) {
       url: `https://www.google.com/search?q=${encodeURIComponent(terminosBusqueda + ' inmobiliaria santa fe')}`,
       icon: 'GO',
       categoria: 'PORTALES'
+    },
+    {
+      sitio: 'ZonaProp',
+      titulo: 'ZonaProp (sitio en Google)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:zonaprop.com.ar ${terminosBusqueda}`)}`,
+      icon: 'ZP',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'ArgenProp',
+      titulo: 'ArgenProp (sitio en Google)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:argenprop.com ${terminosBusqueda}`)}`,
+      icon: 'AP',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'MercadoLibre',
+      titulo: 'MercadoLibre (listado)',
+      url: buildMercadoLibreUrl(criterios),
+      icon: 'ML',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Buscainmueble',
+      titulo: 'Buscainmueble (URL directa)',
+      url: buildBuscainmuebleUrl(criterios),
+      icon: 'BI',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Inmobiliarias SF',
+      titulo: 'Inmobiliarias en Santa Fe Capital',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`inmobiliarias santa fe capital ${tipo} ${operacion}`)}`,
+      icon: 'SF',
+      categoria: 'INMOBILIARIAS'
+    },
+    {
+      sitio: 'Remax',
+      titulo: 'Remax (sitio en Google)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:remax.com.ar ${terminosBusqueda}`)}`,
+      icon: 'RX',
+      categoria: 'INMOBILIARIAS'
+    },
+    {
+      sitio: 'Century21',
+      titulo: 'Century21 (sitio en Google)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:century21.com.ar ${terminosBusqueda}`)}`,
+      icon: 'C21',
+      categoria: 'INMOBILIARIAS'
+    },
+    {
+      sitio: 'MercadoUnico',
+      titulo: 'MercadoUnico (sitio en Google)',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:mercado-unico.com ${terminosBusqueda}`)}`,
+      icon: 'MU',
+      categoria: 'INMOBILIARIAS'
+    },
+    {
+      sitio: 'Google',
+      titulo: `${tipo} ${operacion} Santa Fe Capital`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${tipo} ${operacion} santa fe capital`)}`,
+      icon: 'GO',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Google',
+      titulo: `${tipo} ${operacion} Candioti`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${tipo} ${operacion} candioti santa fe`)}`,
+      icon: 'GO',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Google',
+      titulo: `${tipo} ${operacion} Centro`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${tipo} ${operacion} centro santa fe`)}`,
+      icon: 'GO',
+      categoria: 'PORTALES'
+    },
+    {
+      sitio: 'Google',
+      titulo: `${tipo} ${operacion} Barrio Sur`,
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${tipo} ${operacion} barrio sur santa fe`)}`,
+      icon: 'GO',
+      categoria: 'PORTALES'
     }
   ]
 
-  return links
+  const dedup = Array.from(new Map(links.map((l) => [l.url, l])).values())
+  return dedup.slice(0, 20)
 }
 
 // ----------------------------------------------------------------------
@@ -1239,7 +1423,7 @@ function validarItemContraCriterios(
         if (criterios.presupuestoMin && precioFinal < criterios.presupuestoMin) {
           return { valido: false, razon: `precio por debajo del minimo (${precioFinal} < ${criterios.presupuestoMin})` }
         }
-        if (precioFinal > criterios.presupuestoMax * 1.08) {
+        if (precioFinal > criterios.presupuestoMax * 1.4) {
           return { valido: false, razon: `precio excede presupuesto (${precioFinal} > ${criterios.presupuestoMax})` }
         }
       }
@@ -1335,7 +1519,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
       'candioti', 'centro', 'microcentro', 'macrocentro', 'barrio sur', 'barrio norte',
       'guadalupe', '7 jefes', 'bulevar', 'constituyentes', 'mayoraz',
       'maria selva', 'sargento cabral', 'las flores', 'roma', 'fomento',
-      'barranquitas', 'los hornos', 'ciudadela', 'san martin', 'recoleta',
+      'barranquitas', 'los hornos', 'ciudadela', 'recoleta',
       'puerto', 'costanera', 'villa setubal',
       // Alrededores de Santa Fe Capital
       'rincon', 'san jose del rincon', 'santo tome', 'sauce viejo',
@@ -1615,6 +1799,8 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
         'barracas', 'la boca', 'san telmo', 'montserrat', 'nunez', 'saavedra',
         'colegiales', 'recoleta buenos aires', 'recoleta caba',
         'san martin buenos aires', 'san martin gba',
+        'general san martin', 'gral san martin',
+        'la matanza', 'ramos mejia', 'villa maipu',
         // Gran Buenos Aires
         'quilmes', 'lanus', 'avellaneda', 'moron', 'lomas de zamora', 'san isidro',
         'vicente lopez', 'tigre', 'san fernando', 'zona norte', 'zona sur', 'zona oeste',
@@ -1660,6 +1846,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
           tituloLower.includes('buscar solo') || 
           tituloLower.includes('moneda:') ||
           (tituloLower.includes('argentina') && !tituloLower.includes('departamento') && !tituloLower.includes('casa')) ||
+          /^\d[\d\.\, ]+\s+(casas?|departamentos?|terrenos?|inmuebles?)\s+en\s+(venta|alquiler)/i.test(tituloLower) ||
           /^\(\d+\)$/.test(tituloLower)) {
         return // Rechazar elementos de UI
       }
@@ -1691,6 +1878,11 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
       const tieneZonaSantaFe = santaFeZonas.some(zona => 
         ubicacionLower.includes(zona.toLowerCase()) || tituloLower.includes(zona.toLowerCase())
       )
+
+      // Si no hay ninguna señal de Santa Fe, descartar (evita listados nacionales de ArgenProp)
+      if (!esClaramenteSantaFe && !urlValida && !tieneZonaSantaFe) {
+        return
+      }
       
       // 2. VALIDACIÃƒâ€œN NEGATIVA: Blacklist ESTRICTA (incluye URL tambiÃƒÂ©n)
       // PERO: NO aplicar blacklist si es claramente de Santa Fe
@@ -1745,12 +1937,50 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
          titulo,
          precio: precio.replace(/\n/g, '').trim(),
          ubicacion,
-         url: `https://www.argenprop.com${urlRel}`, // Argenprop usa links relativos
+         url: safeAbsoluteUrl(urlRel, 'https://www.argenprop.com') || `https://www.argenprop.com${urlRel}`,
          img: img || null
       })
       console.log(`ArgenProp: Agregado item ${items.length}: ${titulo.substring(0, 50)}`)
     })
 
+    if (items.length === 0) {
+      $('a[href*="/propiedad"], a[href*="-en-santa-fe"]').each((i, a) => {
+        if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
+        const href = $(a).attr('href')
+        const urlCompleta = safeAbsoluteUrl(href, 'https://www.argenprop.com')
+        if (!urlCompleta) return
+
+        const urlNorm = normalizeText(urlCompleta)
+        if (!urlNorm.includes('argenprop.com')) return
+
+        const container = $(a).closest('article, div, li')
+        const rawText = container.text().replace(/\s+/g, ' ').trim()
+        const titulo = $(a).text().trim() || container.find('h2, h3, [class*="title"]').first().text().trim()
+        const precio = extractPriceFromText(rawText) || container.find('[class*="price"], .price').first().text().trim()
+        const ubicacion =
+          container.find('[class*="location"], .location, [class*="address"], .address').first().text().trim() ||
+          (rawText.includes('Santa Fe') ? 'Santa Fe' : '')
+
+        if (!titulo || titulo.length < 10 || !precio) return
+        const key = `${urlCompleta}|${titulo}`
+        if (items.some((it) => `${it.url}|${it.titulo}` === key)) return
+
+        const validacion = validarItemContraCriterios(titulo, precio, criterios, 'ArgenProp')
+        if (!validacion.valido) return
+
+        items.push({
+          sitio: 'ArgenProp',
+          titulo,
+          precio: precio.replace(/\n/g, '').trim(),
+          ubicacion: ubicacion || 'Santa Fe',
+          url: urlCompleta,
+          img: container.find('img').first().attr('data-src') || container.find('img').first().attr('src') || null,
+        })
+      })
+      console.log(`ArgenProp: fallback por links, total: ${items.length}`)
+    }
+
+    console.log(`ArgenProp: Total de items encontrados: ${items.length}`)
     return items
 
   } catch (error) {
@@ -2150,6 +2380,40 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
         console.log(`ZonaProp: Agregado item ${items.length}: ${titulo.substring(0, 50)}`)
       }
     })
+
+    if (items.length === 0) {
+      $('a[href*="/propiedades/"]').each((i, a) => {
+        if (items.length >= SCRAPER_PORTAL_HARD_LIMIT) return
+        const href = $(a).attr('href')
+        const urlCompleta = safeAbsoluteUrl(href, 'https://www.zonaprop.com.ar')
+        if (!urlCompleta) return
+
+        const container = $(a).closest('article, div, li')
+        const rawText = container.text().replace(/\s+/g, ' ').trim()
+        const titulo = $(a).text().trim() || container.find('h2, h3, [class*="title"]').first().text().trim()
+        const precio = extractPriceFromText(rawText) || container.find('[class*="price"], .price').first().text().trim()
+        const ubicacion =
+          container.find('[class*="location"], .location, .address').first().text().trim() ||
+          (rawText.includes('Santa Fe') ? 'Santa Fe' : '')
+
+        if (!titulo || titulo.length < 10 || !precio) return
+        const key = `${urlCompleta}|${titulo}`
+        if (items.some((it) => `${it.url}|${it.titulo}` === key)) return
+
+        const validacion = validarItemContraCriterios(titulo, precio, criterios, 'ZonaProp')
+        if (!validacion.valido) return
+
+        items.push({
+          sitio: 'ZonaProp',
+          titulo,
+          precio: precio.replace(/\n/g, '').trim(),
+          ubicacion: ubicacion || 'Santa Fe',
+          url: urlCompleta,
+          img: container.find('img').first().attr('data-src') || container.find('img').first().attr('src') || null,
+        })
+      })
+      console.log(`ZonaProp: fallback por links, total: ${items.length}`)
+    }
 
     console.log(`ZonaProp: Total de items encontrados: ${items.length}`)
     return items

@@ -289,10 +289,6 @@ function ParsearBusquedaContent() {
 
     return [
       { id: 'google', label: 'Google', url: `https://www.google.com/search?q=${encodeURIComponent(q)}` },
-      { id: 'site_zp', label: 'ZonaProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:zonaprop.com.ar ${q}`)}` },
-      { id: 'site_ap', label: 'ArgenProp (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:argenprop.com ${q}`)}` },
-      { id: 'site_ml', label: 'MercadoLibre (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:inmuebles.mercadolibre.com.ar ${q}`)}` },
-      { id: 'site_rx', label: 'Remax (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:remax.com.ar ${q}`)}` },
       { id: 'site_c21', label: 'Century 21 (sitio)', url: `https://www.google.com/search?q=${encodeURIComponent(`site:century21.com.ar ${q}`)}` },
       { id: 'mercadounico', label: 'MercadoUnico', url: `https://www.google.com/search?q=${encodeURIComponent(`mercadounico inmobiliaria santa fe capital ${q}`)}` },
       { id: 'inmo_sf', label: 'Inmobiliarias Santa Fe', url: `https://www.google.com/search?q=${encodeURIComponent(`inmobiliarias en santa fe capital ${tipo}`)}` },
@@ -758,10 +754,9 @@ function ParsearBusquedaContent() {
               )}
             </div>
 
-            {Array.isArray(resultado?.scrapedItems) && resultado.scrapedItems.length > 0 && (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 <div className="text-sm font-semibold text-slate-800">
-                  Oportunidades en Portales ({resultado.scrapedItems.length})
+                  Oportunidades en Portales ({scrapedItemsConIndice.length})
                 </div>
                 <div className="text-xs text-slate-500">
                   Paso 1: abre portales con filtros. Paso 2: compara fuentes. Paso 3: usa inmobiliarias de Santa Fe.
@@ -856,82 +851,89 @@ function ParsearBusquedaContent() {
                     </a>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span>
-                    Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
-                    {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItemsConIndice.length)} de {scrapedItemsConIndice.length}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
-                      disabled={scrapedPage <= 1}
-                    >
-                      Anterior
-                    </Button>
-                    <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
-                      disabled={scrapedPage >= scrapedTotalPages}
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {scrapedItemsPaginados.map(({ item, idx }: any) => (
-                    <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
-                      {item?.img ? (
-                        <img
-                          src={item.img}
-                          alt={item?.titulo || 'propiedad'}
-                          className="w-20 h-20 object-cover rounded"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded bg-slate-100" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-slate-500">
-                          {item?.sitio || 'Portal'}
-                        </div>
-                        <div className="text-sm font-semibold text-slate-900 line-clamp-2">
-                          {item?.titulo || '-'}
-                        </div>
-                        <div className="text-sm font-bold text-slate-900 mt-1">
-                          {item?.precio || '-'}
-                        </div>
-                        <div className="text-xs text-slate-600 line-clamp-1">
-                          {item?.ubicacion || '-'}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={seleccionadas.has(`scraped:${idx}`)}
-                            onChange={() => toggleSeleccion(`scraped:${idx}`)}
-                          />
-                          {item?.url && (
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:border-sky-300"
-                            >
-                              Ver portal
-                            </a>
-                          )}
-                        </div>
+                {scrapedItemsConIndice.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <span>
+                        Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
+                        {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItemsConIndice.length)} de {scrapedItemsConIndice.length}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
+                          disabled={scrapedPage <= 1}
+                        >
+                          Anterior
+                        </Button>
+                        <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
+                          disabled={scrapedPage >= scrapedTotalPages}
+                        >
+                          Siguiente
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {scrapedItemsPaginados.map(({ item, idx }: any) => (
+                        <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
+                          {item?.img ? (
+                            <img
+                              src={item.img}
+                              alt={item?.titulo || 'propiedad'}
+                              className="w-20 h-20 object-cover rounded"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 rounded bg-slate-100" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-slate-500">
+                              {item?.sitio || 'Portal'}
+                            </div>
+                            <div className="text-sm font-semibold text-slate-900 line-clamp-2">
+                              {item?.titulo || '-'}
+                            </div>
+                            <div className="text-sm font-bold text-slate-900 mt-1">
+                              {item?.precio || '-'}
+                            </div>
+                            <div className="text-xs text-slate-600 line-clamp-1">
+                              {item?.ubicacion || '-'}
+                            </div>
+                            <div className="mt-2 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={seleccionadas.has(`scraped:${idx}`)}
+                                onChange={() => toggleSeleccion(`scraped:${idx}`)}
+                              />
+                              {item?.url && (
+                                <a
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:border-sky-300"
+                                >
+                                  Ver portal
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    No se pudieron extraer publicaciones en tiempo real. Usa los botones de portales para abrir ZonaProp/ArgenProp/MercadoLibre con filtros.
+                  </div>
+                )}
               </div>
-            )}
 
             <Card>
               <CardHeader>
@@ -1035,6 +1037,18 @@ function ParsearBusquedaContent() {
                           {m?.precio ? `${m?.moneda || ''} ${m?.precio}` : (m?.propiedad?.precio ? `${m?.propiedad?.moneda || ''} ${m?.propiedad?.precio}` : '-')}
                         </div>
                       </div>
+                      {(m?.id || m?.propiedad?.id) && (
+                        <div className="mt-2 pl-6">
+                          <a
+                            href={`/propiedades/${m?.id || m?.propiedad?.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Ver propiedad
+                          </a>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
