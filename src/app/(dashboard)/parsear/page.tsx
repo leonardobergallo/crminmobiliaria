@@ -26,7 +26,14 @@ type Busqueda = {
   createdAt?: string | null
 }
 
+type ManualLinkDraft = {
+  id: string
+  titulo: string
+  url: string
+}
+
 const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
+
 const MERCADO_UNICO_INMOBILIARIAS = [
   '9010 Inmobiliaria',
   'AGP Negocios Inmobiliarios',
@@ -200,9 +207,8 @@ function ParsearBusquedaContent() {
   const [busquedaId, setBusquedaId] = useState('')
   const [busquedaFiltro, setBusquedaFiltro] = useState('')
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
-  const [linkExterno, setLinkExterno] = useState('')
-  const [linkExternoTitulo, setLinkExternoTitulo] = useState('')
-  const [linkSeleccionado, setLinkSeleccionado] = useState<string | null>(null)
+  const [manualLinks, setManualLinks] = useState<ManualLinkDraft[]>([{ id: 'manual-1', titulo: '', url: '' }])
+  const [manualLinksSeleccionados, setManualLinksSeleccionados] = useState<Set<string>>(new Set())
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
   const [scrapedPage, setScrapedPage] = useState(1)
   const SCRAPED_PAGE_SIZE = 10
@@ -462,6 +468,36 @@ function ParsearBusquedaContent() {
     })
   }
 
+  const updateManualLink = (id: string, field: 'titulo' | 'url', value: string) => {
+    setManualLinks((prev) => prev.map((link) => (link.id === id ? { ...link, [field]: value } : link)))
+  }
+
+  const addManualLink = () => {
+    const nextId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setManualLinks((prev) => [...prev, { id: nextId, titulo: '', url: '' }])
+  }
+
+  const removeManualLink = (id: string) => {
+    setManualLinks((prev) => {
+      if (prev.length === 1) return [{ ...prev[0], titulo: '', url: '' }]
+      return prev.filter((link) => link.id !== id)
+    })
+    setManualLinksSeleccionados((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
+  const toggleManualLinkSeleccionado = (id: string) => {
+    setManualLinksSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const guardarBusqueda = () => {
     if (!clienteId) return
     const items = Array.from(seleccionadas).map((k) => {
@@ -479,8 +515,16 @@ function ParsearBusquedaContent() {
       return null
     }).filter(Boolean)
 
-    if (linkSeleccionado) {
-      items.push({ tipo: 'externo', item: { url: linkSeleccionado, titulo: linkExternoTitulo || 'Link externo' } })
+    const manualLinksValidos = manualLinks
+      .filter((link) => manualLinksSeleccionados.has(link.id))
+      .map((link) => link.url.trim() ? ({
+        tipo: 'externo',
+        item: { url: link.url.trim(), titulo: link.titulo.trim() || 'Link externo' },
+      }) : null)
+      .filter(Boolean)
+
+    if (manualLinksValidos.length > 0) {
+      items.push(...manualLinksValidos)
     }
 
     const params = new URLSearchParams()
@@ -522,6 +566,8 @@ function ParsearBusquedaContent() {
     setError(null)
     setResultado(null)
     setSeleccionadas(new Set())
+    setManualLinks([{ id: 'manual-1', titulo: '', url: '' }])
+    setManualLinksSeleccionados(new Set())
     try {
       const mensaje = buildMensajeFromBusqueda(busquedaSeleccionada)
       const res = await fetch('/api/parsear-busqueda', {
@@ -720,7 +766,7 @@ function ParsearBusquedaContent() {
               </div>
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div className="text-xs text-slate-500">Seleccionadas</div>
-                <div className="text-lg font-semibold text-slate-900">{seleccionadas.size + (linkSeleccionado ? 1 : 0)}</div>
+                <div className="text-lg font-semibold text-slate-900">{seleccionadas.size + manualLinksSeleccionados.size}</div>
               </div>
             </div>
 
@@ -743,7 +789,7 @@ function ParsearBusquedaContent() {
               >
                 Ir a Gestion del Cliente
               </Button>
-              {(linkSeleccionado || seleccionadas.size > 0) && (
+              {(manualLinksSeleccionados.size > 0 || seleccionadas.size > 0) && (
                 <Button
                   type="button"
                   className="bg-emerald-600 hover:bg-emerald-700"
@@ -939,33 +985,59 @@ function ParsearBusquedaContent() {
               <CardHeader>
                 <CardTitle>Link externo manual</CardTitle>
                 <p className="text-sm text-slate-600">
-                  Agrega una propiedad/link manual y seleccionalo para guardarlo en la gestion del cliente.
+                  Agrega los links externos que necesites, marcarlos y guardalos en la gestion del cliente.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Input
-                  placeholder="Titulo visible (ej: Casa 3D Guadalupe)"
-                  value={linkExternoTitulo}
-                  onChange={(e) => setLinkExternoTitulo(e.target.value)}
-                />
-                <Input
-                  placeholder="Pega URL completa (https://...)"
-                  value={linkExterno}
-                  onChange={(e) => setLinkExterno(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!linkExterno.trim()}
-                  onClick={() => setLinkSeleccionado(linkExterno.trim())}
-                >
-                  Seleccionar link
+                {manualLinks.map((manualLink, index) => {
+                  const disabledSelect = !manualLink.url.trim()
+                  const isSelected = manualLinksSeleccionados.has(manualLink.id)
+                  return (
+                    <div key={manualLink.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-slate-600">Link #{index + 1}</div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={disabledSelect}
+                            onClick={() => toggleManualLinkSeleccionado(manualLink.id)}
+                          >
+                            {isSelected ? 'Quitar seleccion' : 'Seleccionar link'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={manualLinks.length === 1}
+                            onClick={() => removeManualLink(manualLink.id)}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+                      </div>
+                      <Input
+                        placeholder="Titulo visible (ej: Casa 3D Guadalupe)"
+                        value={manualLink.titulo}
+                        onChange={(e) => updateManualLink(manualLink.id, 'titulo', e.target.value)}
+                      />
+                      <Input
+                        placeholder="Pega URL completa (https://...)"
+                        value={manualLink.url}
+                        onChange={(e) => updateManualLink(manualLink.id, 'url', e.target.value)}
+                      />
+                      {isSelected && (
+                        <div className="text-sm text-green-700">
+                          Link seleccionado: {manualLink.titulo.trim() || 'Sin titulo'} - {manualLink.url.trim()}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <Button type="button" variant="outline" onClick={addManualLink}>
+                  + Agregar otro link
                 </Button>
-                {linkSeleccionado && (
-                  <div className="text-sm text-green-700">
-                    Link seleccionado: {linkExternoTitulo || 'Sin titulo'} - {linkSeleccionado}
-                  </div>
-                )}
               </CardContent>
             </Card>
 

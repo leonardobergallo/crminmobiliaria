@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -23,8 +23,55 @@ import {
   Clock3,
 } from 'lucide-react'
 
+type DemoCaptureSlide = {
+  id: string
+  titulo: string
+  descripcion: string
+  image: string
+  alt: string
+}
+
+const DEMO_CAPTURE_SLIDES: DemoCaptureSlide[] = [
+  {
+    id: 'dashboard',
+    titulo: 'Dashboard comercial',
+    descripcion: 'KPIs, pipeline y resumen rapido de actividad del equipo.',
+    image: '/demo/captura-1-dashboard.png',
+    alt: 'Vista dashboard del CRM inmobiliario',
+  },
+  {
+    id: 'gestion-cliente',
+    titulo: 'Gestion de cliente',
+    descripcion: 'Seguimiento completo de busquedas, envios, notas y respuestas.',
+    image: '/demo/captura-2-gestion-cliente.png',
+    alt: 'Vista gestion de cliente en CRM inmobiliario',
+  },
+  {
+    id: 'busqueda-inteligente',
+    titulo: 'Busqueda inteligente',
+    descripcion: 'Analisis de portales y sugerencias para pasar directo a gestion.',
+    image: '/demo/captura-3-busqueda-inteligente.png',
+    alt: 'Vista busqueda inteligente y oportunidades en portales',
+  },
+  {
+    id: 'portales',
+    titulo: 'Oportunidades en portales',
+    descripcion: 'Comparacion rapida de fuentes y navegacion de publicaciones.',
+    image: '/demo/captura-4-portales.png',
+    alt: 'Vista oportunidades en portales inmobiliarios',
+  },
+  {
+    id: 'link-externo',
+    titulo: 'Links externos manuales',
+    descripcion: 'Carga de links externos para sumar opciones y guardarlas.',
+    image: '/demo/captura-5-link-externo.png',
+    alt: 'Vista de carga de link externo manual',
+  },
+]
+
 export default function LandingPage() {
   const [sending, setSending] = useState(false)
+  const [demoSlideIndex, setDemoSlideIndex] = useState(0)
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -33,6 +80,13 @@ export default function LandingPage() {
     horaDemo: '',
     mensaje: '',
   })
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setDemoSlideIndex((prev) => (prev + 1) % DEMO_CAPTURE_SLIDES.length)
+    }, 3500)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -275,6 +329,56 @@ export default function LandingPage() {
 
       <section id="demo" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 overflow-hidden rounded-3xl border border-slate-200 bg-slate-900">
+            <div className="relative aspect-[16/9] bg-slate-950">
+              <img
+                src={DEMO_CAPTURE_SLIDES[demoSlideIndex].image}
+                alt={DEMO_CAPTURE_SLIDES[demoSlideIndex].alt}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-5 md:p-6 text-white">
+                <div className="text-xs font-semibold uppercase tracking-wide text-white/80">Tour del sistema</div>
+                <h3 className="mt-1 text-xl md:text-2xl font-bold">{DEMO_CAPTURE_SLIDES[demoSlideIndex].titulo}</h3>
+                <p className="mt-1 text-sm text-white/90">{DEMO_CAPTURE_SLIDES[demoSlideIndex].descripcion}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700 bg-slate-900 px-4 py-3">
+              <div className="flex items-center gap-1.5">
+                {DEMO_CAPTURE_SLIDES.map((slide, idx) => (
+                  <button
+                    key={slide.id}
+                    type="button"
+                    onClick={() => setDemoSlideIndex(idx)}
+                    className={`h-2.5 rounded-full transition-all ${
+                      idx === demoSlideIndex ? 'w-6 bg-white' : 'w-2.5 bg-slate-500 hover:bg-slate-300'
+                    }`}
+                    aria-label={`Ver captura ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-400 bg-transparent text-white hover:bg-slate-800"
+                  onClick={() => setDemoSlideIndex((prev) => (prev - 1 + DEMO_CAPTURE_SLIDES.length) % DEMO_CAPTURE_SLIDES.length)}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-400 bg-transparent text-white hover:bg-slate-800"
+                  onClick={() => setDemoSlideIndex((prev) => (prev + 1) % DEMO_CAPTURE_SLIDES.length)}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-blue-600 rounded-3xl p-8 md:p-16 text-white text-center">
             <h2 className="text-3xl font-extrabold sm:text-4xl mb-6">
               Proba el sistema ahora
