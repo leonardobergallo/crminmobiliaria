@@ -19,9 +19,13 @@ import {
   Phone,
   User,
   MessageSquare,
+  MessageCircle,
   CalendarDays,
   Clock3,
 } from 'lucide-react'
+
+const CONTACT_PHONE_DISPLAY = '+54 9 342 508-8906'
+const WHATSAPP_URL = 'https://wa.me/5493425088906?text=Hola%2C%20quiero%20info%20del%20CRM%20inmobiliario.'
 
 type DemoCaptureSlide = {
   id: string
@@ -399,7 +403,7 @@ export default function LandingPage() {
                   <p className="text-lg font-mono">demo123</p>
                 </div>
               </div>
-              <Link href="/login">
+              <Link href="/demo">
                 <Button className="w-full bg-white text-blue-600 hover:bg-blue-50 font-bold py-6 text-lg">
                   Acceder al sistema demo
                 </Button>
@@ -558,7 +562,7 @@ export default function LandingPage() {
                   <input
                     type="text"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-                    placeholder="+54 11 1234-5678"
+                    placeholder={CONTACT_PHONE_DISPLAY}
                     value={formData.telefono}
                     onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                   />
@@ -641,7 +645,17 @@ export default function LandingPage() {
                   <Mail className="w-4 h-4 text-blue-500" /> info@inmobiliar.com
                 </li>
                 <li className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-blue-500" /> +54 11 1234-5678
+                  <Phone className="w-4 h-4 text-blue-500" /> {CONTACT_PHONE_DISPLAY}
+                </li>
+                <li>
+                  <a
+                    href={WHATSAPP_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                  >
+                    <MessageSquare className="w-4 h-4" /> WhatsApp: {CONTACT_PHONE_DISPLAY}
+                  </a>
                 </li>
               </ul>
             </div>
@@ -652,6 +666,16 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <a
+        href={WHATSAPP_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Contactar por WhatsApp"
+        className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg transition hover:scale-105 hover:bg-emerald-600"
+      >
+        <MessageCircle className="h-7 w-7" />
+      </a>
     </div>
   )
 }
