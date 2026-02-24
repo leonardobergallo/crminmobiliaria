@@ -777,6 +777,35 @@ function ParsearBusquedaContent() {
               ) : null}
             </div>
 
+            {Array.isArray(resultado?.portalDiagnostics) && resultado.portalDiagnostics.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="text-sm font-semibold text-slate-800 mb-2">Diagnostico por portal</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {resultado.portalDiagnostics.map((d: any, idx: number) => {
+                    const estado = String(d?.estado || 'SIN_RESULTADOS')
+                    const estadoClass =
+                      estado === 'OK'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : estado === 'TIMEOUT'
+                          ? 'bg-amber-100 text-amber-700'
+                          : estado === 'BLOQUEO_PROBABLE'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-slate-100 text-slate-700'
+                    return (
+                      <div key={`${d?.portal || 'portal'}-${idx}`} className="rounded border border-slate-200 p-2 bg-slate-50">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-slate-900">{d?.portal || 'Portal'}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${estadoClass}`}>{estado}</span>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">{d?.razon || 'Sin detalle'}</div>
+                        <div className="text-xs text-slate-500 mt-1">Publicaciones: {Number(d?.publicaciones || 0)}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 flex-wrap">
               <Button
                 type="button"

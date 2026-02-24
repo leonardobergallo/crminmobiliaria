@@ -30,6 +30,38 @@ type FiltrosPortalesInput = {
   ambientesMin?: string | number
 }
 
+type PortalKey = 'mercadolibre' | 'argenprop' | 'remax' | 'zonaprop' | 'buscainmueble'
+
+type PortalDiagCounter = {
+  timeouts: number
+  httpErrors: number
+  blockedSignals: number
+  selectorFallbacks: number
+  errors: number
+}
+
+type PortalTelemetry = Record<PortalKey, PortalDiagCounter>
+
+function newPortalCounter(): PortalDiagCounter {
+  return {
+    timeouts: 0,
+    httpErrors: 0,
+    blockedSignals: 0,
+    selectorFallbacks: 0,
+    errors: 0,
+  }
+}
+
+function newPortalTelemetry(): PortalTelemetry {
+  return {
+    mercadolibre: newPortalCounter(),
+    argenprop: newPortalCounter(),
+    remax: newPortalCounter(),
+    zonaprop: newPortalCounter(),
+    buscainmueble: newPortalCounter(),
+  }
+}
+
 function getEnvPositiveInt(name: string, fallback: number): number {
   const raw = process.env[name]
   const parsed = Number.parseInt(String(raw || ''), 10)
@@ -294,7 +326,12 @@ function safeAbsoluteUrl(href: string | undefined, base: string): string | null 
   return `${base}${href}`
 }
 
-async function fetchWithTimeout(url: string, options: any = {}, timeout: number = 8000) {
+async function fetchWithTimeout(
+  url: string,
+  options: any = {},
+  timeout: number = 8000,
+  counter?: PortalDiagCounter
+) {
   // Soporte para Proxy de Scraping (opcional)
   const proxyUrl = process.env.SCRAPER_PROXY_URL
   const withProxy = proxyUrl
@@ -318,8 +355,10 @@ async function fetchWithTimeout(url: string, options: any = {}, timeout: number 
     } catch (error: any) {
       clearTimeout(id)
       if (error.name === 'AbortError') {
+        if (counter) counter.timeouts += 1
         console.error(`PeticiÃƒÂ³n abortada (timeout) para: ${url} (${mode})`)
       } else {
+        if (counter) counter.errors += 1
         console.error(`Error en fetch para ${url} (${mode}):`, error.message)
       }
       return { ok: false, status: 0, statusText: error.message } as any
@@ -473,13 +512,14 @@ export async function POST(request: NextRequest) {
       Promise.resolve(generarLinksExternos(busquedaParseada))
     ])
     
+    const telemetry = newPortalTelemetry()
     console.log('Iniciando scraping paralelo de portales...')
     const [mlItems, apItems, remaxItems, zpItems, biItems] = await Promise.all([
-      scrapearMercadoLibre(busquedaParseada),
-      scrapearArgenProp(busquedaParseada),
-      scrapearRemax(busquedaParseada),
-      scrapearZonaProp(busquedaParseada),
-      scrapearBuscainmueble(busquedaParseada)
+      scrapearMercadoLibre(busquedaParseada, telemetry.mercadolibre),
+      scrapearArgenProp(busquedaParseada, telemetry.argenprop),
+      scrapearRemax(busquedaParseada, telemetry.remax),
+      scrapearZonaProp(busquedaParseada, telemetry.zonaprop),
+      scrapearBuscainmueble(busquedaParseada, telemetry.buscainmueble)
     ])
 
     const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
@@ -502,6 +542,44 @@ export async function POST(request: NextRequest) {
       totalFallbackLinks: 0,
     }
 
+    const buildPortalDiag = (portal: string, count: number, counter: PortalDiagCounter) => {
+      let estado = 'SIN_RESULTADOS'
+      let razon = 'No se extrajeron publicaciones validas para los filtros.'
+
+      if (count > 0) {
+        estado = 'OK'
+        razon = `${count} publicaciones extraidas.`
+      } else if (counter.timeouts > 0) {
+        estado = 'TIMEOUT'
+        razon = 'El portal no respondio a tiempo durante el scraping.'
+      } else if (counter.blockedSignals > 0) {
+        estado = 'BLOQUEO_PROBABLE'
+        razon = 'Se detectaron senales de bloqueo o anti-bot.'
+      } else if (counter.httpErrors > 0) {
+        estado = 'HTTP_ERROR'
+        razon = 'El portal respondio con error HTTP.'
+      } else if (counter.selectorFallbacks > 0) {
+        estado = 'SELECTOR_SIN_MATCH'
+        razon = 'Cambio de estructura HTML o selectores sin coincidencias.'
+      }
+
+      return {
+        portal,
+        estado,
+        razon,
+        publicaciones: count,
+        metricas: counter,
+      }
+    }
+
+    const portalDiagnostics = [
+      buildPortalDiag('MercadoLibre', mlItems.length, telemetry.mercadolibre),
+      buildPortalDiag('ArgenProp', apItems.length, telemetry.argenprop),
+      buildPortalDiag('Remax', remaxItems.length, telemetry.remax),
+      buildPortalDiag('ZonaProp', zpItems.length, telemetry.zonaprop),
+      buildPortalDiag('Buscainmueble', biItems.length, telemetry.buscainmueble),
+    ]
+
     return NextResponse.json({
       success: true,
       busquedaParseada,
@@ -509,6 +587,7 @@ export async function POST(request: NextRequest) {
       webMatches,
       scrapedItems: scrapedItemsFinal,
       portalStats,
+      portalDiagnostics,
       usandoIA,
       guardado: guardadoInfo
     })
@@ -1442,7 +1521,7 @@ function validarItemContraCriterios(
 // ----------------------------------------------------------------------
 // SCRAPER MERCADOLIBRE (En tiempo real)
 // ----------------------------------------------------------------------
-async function scrapearMercadoLibre(criterios: BusquedaParseada) {
+async function scrapearMercadoLibre(criterios: BusquedaParseada, counter?: PortalDiagCounter) {
   try {
      // ConfiguraciÃƒÂ³n
     const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
@@ -1486,7 +1565,11 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
       console.log(`Intentando scraping MercadoLibre: ${lastUrl}`)
       const response = await fetchWithTimeout(lastUrl, {
         headers: getScrapingHeaders('https://www.mercadolibre.com.ar/')
-      })
+      }, 8000, counter)
+
+      if (!response.ok && counter) {
+        counter.httpErrors += 1
+      }
 
       if (response.ok) {
         const text = await response.text()
@@ -1494,12 +1577,14 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
           html = text
           break // Ãƒâ€°xito, salir del bucle
         } else {
+          if (counter) counter.blockedSignals += 1
           console.warn(`MercadoLibre: URL bloqueada o invÃƒÂ¡lida, intentando siguiente... URL: ${lastUrl}`)
         }
       }
     }
 
     if (!html) {
+      if (counter) counter.blockedSignals += 1
       console.error(`MercadoLibre: Todos los intentos fallaron o fueron bloqueados.`)
       return []
     }
@@ -1513,6 +1598,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     
     // Si no encontramos elementos, intentar selectores mÃƒÂ¡s genÃƒÂ©ricos
     if (elements.length === 0) {
+      if (counter) counter.selectorFallbacks += 1
       elements = $('article, .item, [class*="item"], [class*="card"], [class*="result"]')
       console.log(`MercadoLibre: Usando selectores genÃƒÂ©ricos, encontrados: ${elements.length}`)
     } else {
@@ -1669,6 +1755,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
     console.log(`MercadoLibre: Total de items encontrados: ${items.length}`)
     return items
   } catch (error) {
+    if (counter) counter.errors += 1
     console.error('Error scraping ML:', error)
     return []
   }
@@ -1677,7 +1764,7 @@ async function scrapearMercadoLibre(criterios: BusquedaParseada) {
 // ----------------------------------------------------------------------
 // SCRAPER ARGENPROP (Nuevo)
 // ----------------------------------------------------------------------
-async function scrapearArgenProp(criterios: BusquedaParseada) {
+async function scrapearArgenProp(criterios: BusquedaParseada, counter?: PortalDiagCounter) {
   try {
      // Config
     const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
@@ -1752,15 +1839,17 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
 
     const response = await fetchWithTimeout(url, {
       headers: getScrapingHeaders('https://www.argenprop.com/')
-    })
+    }, 8000, counter)
 
     if (!response.ok) {
+      if (counter) counter.httpErrors += 1
       console.error(`ArgenProp: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
     if (!html || html.length < 500) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`ArgenProp: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
@@ -1771,6 +1860,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     const pageTitle = $('title').text()
     console.log(`ArgenProp: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
     if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden')) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`ArgenProp: Posible bloqueo o CAPTCHA detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
@@ -1823,6 +1913,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     let argenElements = $('.listing__item, .card, [class*="card"], [class*="listing"], article')
     
     if (argenElements.length === 0) {
+      if (counter) counter.selectorFallbacks += 1
       // Si no encontramos con selectores especÃƒÂ­ficos, intentar mÃƒÂ¡s genÃƒÂ©ricos
       argenElements = $('[class*="property"], [class*="item"], [data-testid]')
       console.log(`ArgenProp: Usando selectores genÃƒÂ©ricos, encontrados: ${argenElements.length}`)
@@ -1990,6 +2081,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
     return items
 
   } catch (error) {
+    if (counter) counter.errors += 1
     console.error('Error scraping ArgenProp:', error)
     // Silently fail to not block other results
     return []
@@ -1999,7 +2091,7 @@ async function scrapearArgenProp(criterios: BusquedaParseada) {
 // ----------------------------------------------------------------------
 // SCRAPER REMAX
 // ----------------------------------------------------------------------
-async function scrapearRemax(criterios: BusquedaParseada) {
+async function scrapearRemax(criterios: BusquedaParseada, counter?: PortalDiagCounter) {
   try {
     const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
     let tipo = 'inmuebles'
@@ -2022,15 +2114,17 @@ async function scrapearRemax(criterios: BusquedaParseada) {
 
     const response = await fetchWithTimeout(url, {
       headers: getScrapingHeaders('https://www.remax.com.ar/')
-    })
+    }, 8000, counter)
 
     if (!response.ok) {
+      if (counter) counter.httpErrors += 1
       console.error(`Remax: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
     if (!html || html.length < 500) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`Remax: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
@@ -2041,6 +2135,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     const pageTitle = $('title').text()
     console.log(`Remax: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
     if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('access denied')) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`Remax: Posible bloqueo detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
@@ -2050,6 +2145,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     let remaxElements = $('.property-card, .listing-card, [data-testid="property-card"], .card, article, [class*="property"], [class*="listing"]')
     
     if (remaxElements.length === 0) {
+      if (counter) counter.selectorFallbacks += 1
       remaxElements = $('[class*="card"], [class*="item"], [data-testid]')
       console.log(`Remax: Usando selectores genÃƒÂ©ricos, encontrados: ${remaxElements.length}`)
     } else {
@@ -2198,6 +2294,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
     return items
 
   } catch (error) {
+    if (counter) counter.errors += 1
     console.error('Error scraping Remax:', error)
     // Silently fail to not block other results
     return []
@@ -2207,7 +2304,7 @@ async function scrapearRemax(criterios: BusquedaParseada) {
 // ----------------------------------------------------------------------
 // SCRAPER ZONAPROP
 // ----------------------------------------------------------------------
-async function scrapearZonaProp(criterios: BusquedaParseada) {
+async function scrapearZonaProp(criterios: BusquedaParseada, counter?: PortalDiagCounter) {
   try {
     const url = buildZonaPropUrl(criterios)
 
@@ -2215,15 +2312,17 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
 
     const response = await fetchWithTimeout(url, {
       headers: getScrapingHeaders('https://www.zonaprop.com.ar/')
-    })
+    }, 8000, counter)
 
     if (!response.ok) {
+      if (counter) counter.httpErrors += 1
       console.error(`ZonaProp: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
     if (!html || html.length < 500) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`ZonaProp: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
@@ -2234,6 +2333,7 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
     const pageTitle = $('title').text()
     console.log(`ZonaProp: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
     if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`ZonaProp: Posible bloqueo o CAPTCHA detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
@@ -2275,6 +2375,7 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
     let zonaElements = $('.posting-card, .posting, [data-posting-id], .card, article, [class*="posting"], [class*="card"]')
     
     if (zonaElements.length === 0) {
+      if (counter) counter.selectorFallbacks += 1
       zonaElements = $('[class*="property"], [class*="item"], [data-testid]')
       console.log(`ZonaProp: Usando selectores genÃƒÂ©ricos, encontrados: ${zonaElements.length}`)
     } else {
@@ -2425,6 +2526,7 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
     return items
 
   } catch (error) {
+    if (counter) counter.errors += 1
     console.error('Error scraping ZonaProp:', error)
     return []
   }
@@ -2433,7 +2535,7 @@ async function scrapearZonaProp(criterios: BusquedaParseada) {
 // ----------------------------------------------------------------------
 // SCRAPER BUSCAINMUEBLE
 // ----------------------------------------------------------------------
-async function scrapearBuscainmueble(criterios: BusquedaParseada) {
+async function scrapearBuscainmueble(criterios: BusquedaParseada, counter?: PortalDiagCounter) {
   try {
     const operacion = criterios.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
     let tipo = 'propiedades'
@@ -2456,15 +2558,17 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
 
     const response = await fetchWithTimeout(url, {
       headers: getScrapingHeaders('https://www.buscainmueble.com/')
-    })
+    }, 8000, counter)
 
     if (!response.ok) {
+      if (counter) counter.httpErrors += 1
       console.error(`Buscainmueble: Error HTTP ${response.status} (${response.statusText}) para URL: ${url}`)
       return []
     }
 
     const html = await response.text()
     if (!html || html.length < 500) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`Buscainmueble: Se recibiÃƒÂ³ HTML vacÃƒÂ­o o muy corto (${html?.length || 0} bytes)`)
       return []
     }
@@ -2475,6 +2579,7 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     const pageTitle = $('title').text()
     console.log(`Buscainmueble: TÃƒÂ­tulo de pÃƒÂ¡gina: ${pageTitle.substring(0, 100)}`)
     if (pageTitle.toLowerCase().includes('atenciÃƒÂ³n') || pageTitle.toLowerCase().includes('robot') || pageTitle.toLowerCase().includes('forbidden') || pageTitle.toLowerCase().includes('captcha')) {
+      if (counter) counter.blockedSignals += 1
       console.warn(`Buscainmueble: Posible bloqueo detectado. TÃƒÂ­tulo: ${pageTitle}`)
     }
     
@@ -2515,6 +2620,7 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     let buscaElements = $('.property-card, .listing-item, [data-property-id], .card, article, [class*="property"], [class*="card"]')
     
     if (buscaElements.length === 0) {
+      if (counter) counter.selectorFallbacks += 1
       buscaElements = $('[class*="item"], [class*="listing"], [data-testid]')
       console.log(`Buscainmueble: Usando selectores genÃƒÂ©ricos, encontrados: ${buscaElements.length}`)
     } else {
@@ -2633,11 +2739,8 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     return items
 
   } catch (error) {
+    if (counter) counter.errors += 1
     console.error('Error scraping Buscainmueble:', error)
     return []
   }
 }
-
-
-
-
