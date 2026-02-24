@@ -1171,7 +1171,17 @@ function construirFallbackPortalesDesdeLinks(
   const precioBase = 'Consultar'
 
   return (links || [])
-    .filter((l) => l?.url && (l?.categoria === 'PORTALES' || l?.categoria === 'INMOBILIARIAS'))
+    .filter((l) => {
+      if (!l?.url) return false
+      if (!(l?.categoria === 'PORTALES' || l?.categoria === 'INMOBILIARIAS')) return false
+
+      // Evitar mostrar cards "falsas" desde busquedas de Google.
+      // El fallback debe priorizar links directos de portales/inmobiliarias.
+      const url = String(l.url).toLowerCase()
+      if (url.includes('google.com/search') || url.includes('google.com.ar/search')) return false
+
+      return true
+    })
     .map((l) => ({
       sitio: l.sitio || 'Portal',
       titulo: l.titulo || `${l.sitio || 'Portal'}: busqueda filtrada`,
@@ -2631,7 +2641,6 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     return []
   }
 }
-
 
 
 
