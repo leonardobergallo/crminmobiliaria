@@ -231,6 +231,7 @@ export default function BusquedasPage() {
 
   const [formData, setFormData] = useState({
     clienteId: '',
+    usuarioId: '',
     origen: 'ACTIVA',
     prioridad: 'MEDIA' as PrioridadNivel,
     planillaRefRaw: '',
@@ -250,6 +251,7 @@ export default function BusquedasPage() {
   const resetBusquedaForm = () => {
     setFormData({
       clienteId: '',
+      usuarioId: '',
       origen: 'ACTIVA',
       prioridad: 'MEDIA',
       planillaRefRaw: '',
@@ -307,6 +309,7 @@ export default function BusquedasPage() {
     const prioridadManual = (matchPrioridad?.[1]?.toUpperCase() || 'MEDIA') as PrioridadNivel
     setFormData({
       clienteId: busqueda.cliente.id || '',
+      usuarioId: busqueda.cliente.usuario?.id || busqueda.usuario?.id || '',
       origen: busqueda.origen || 'ACTIVA',
       prioridad: prioridadManual,
       planillaRefRaw: busqueda.planillaRef || '',
@@ -399,12 +402,8 @@ export default function BusquedasPage() {
 
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.rol === 'admin') {
-        router.replace('/admin/tablero-busquedas')
-        return
-      }
       Promise.all([fetchBusquedas(), fetchClientes()])
-      if (currentUser.rol === 'admin') {
+      if (currentUser.rol === 'admin' || currentUser.rol === 'superadmin') {
         fetchUsuarios()
       }
     }
@@ -612,6 +611,9 @@ export default function BusquedasPage() {
 
       if (formData.observaciones && formData.observaciones.trim() !== '') {
         payload.observaciones = formData.observaciones.trim()
+      }
+      if ((currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') && formData.usuarioId) {
+        payload.usuarioId = formData.usuarioId
       }
 
       // Manejar dormitoriosMin correctamente
@@ -1002,17 +1004,15 @@ export default function BusquedasPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-slate-900">Busquedas</h1>
-        {currentUser?.rol !== 'admin' && (
-          <Button
-            onClick={() => {
-              if (mostrarForm) resetBusquedaForm()
-              setMostrarForm(!mostrarForm)
-            }}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            + Nueva Busqueda
-          </Button>
-        )}
+        <Button
+          onClick={() => {
+            if (mostrarForm) resetBusquedaForm()
+            setMostrarForm(!mostrarForm)
+          }}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          + Nueva Busqueda
+        </Button>
       </div>
       <Card className="border-slate-200 bg-slate-50">
         <CardContent className="pt-4">
@@ -1086,6 +1086,26 @@ export default function BusquedasPage() {
                   ))}
                 </select>
               </div>
+
+              {(currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Asignar a agente
+                  </label>
+                  <select
+                    value={formData.usuarioId}
+                    onChange={(e) => setFormData({ ...formData, usuarioId: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
+                  >
+                    <option value="">Sin asignar (usa el agente del cliente)</option>
+                    {usuarios.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1976,7 +1996,6 @@ export default function BusquedasPage() {
     </div>
   )
 }
-
 
 
 
