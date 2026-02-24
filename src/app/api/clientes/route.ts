@@ -92,13 +92,49 @@ export async function POST(request: NextRequest) {
       inmobiliariaId = body.inmobiliariaId
     }
 
+    let usuarioAsignadoId: string | null = currentUser.id
+
+    if (usuarioId && typeof usuarioId === 'string') {
+      if (currentUser.rol !== 'admin' && currentUser.rol !== 'superadmin') {
+        return NextResponse.json(
+          { error: 'No autorizado para asignar cliente a otro agente' },
+          { status: 403 }
+        )
+      }
+
+      const usuarioAsignado = await prisma.usuario.findUnique({
+        where: { id: usuarioId },
+        select: { id: true, inmobiliariaId: true },
+      })
+
+      if (!usuarioAsignado) {
+        return NextResponse.json(
+          { error: 'Agente no encontrado' },
+          { status: 404 }
+        )
+      }
+
+      if (
+        currentUser.rol !== 'superadmin' &&
+        currentUser.inmobiliariaId &&
+        usuarioAsignado.inmobiliariaId !== currentUser.inmobiliariaId
+      ) {
+        return NextResponse.json(
+          { error: 'No puedes asignar clientes a usuarios de otra inmobiliaria' },
+          { status: 403 }
+        )
+      }
+
+      usuarioAsignadoId = usuarioAsignado.id
+    }
+
     const cliente = await prisma.cliente.create({
       data: {
         nombreCompleto,
         telefono: telefono || null,
         email: email || null,
         notas: notas || null,
-        usuarioId: usuarioId || currentUser.id,
+        usuarioId: usuarioAsignadoId,
         inmobiliariaId,
       },
     })

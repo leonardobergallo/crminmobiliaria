@@ -88,6 +88,18 @@ interface Sugerencias {
   propiedadesEnviadasCount: number
 }
 
+interface CurrentUser {
+  id: string
+  nombre: string
+  rol: string
+}
+
+interface UsuarioOption {
+  id: string
+  nombre: string
+  rol?: string
+}
+
 function GestionClienteContent() {
   const searchParams = useSearchParams()
   const clienteIdFromUrl = searchParams.get('clienteId')
@@ -100,6 +112,8 @@ function GestionClienteContent() {
   const [envios, setEnvios] = useState<Envio[]>([])
   const [comunicaciones, setComunicaciones] = useState<Comunicacion[]>([])
   const [sugerencias, setSugerencias] = useState<Sugerencias | null>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [usuarios, setUsuarios] = useState<UsuarioOption[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'busquedas' | 'envios' | 'comunicaciones' | 'sugerencias'>(tabFromUrl || 'busquedas')
   
@@ -307,6 +321,7 @@ function GestionClienteContent() {
   const [mostrarFormEnvio, setMostrarFormEnvio] = useState(false)
   const [mostrarFormCom, setMostrarFormCom] = useState(false)
   const [formBusqueda, setFormBusqueda] = useState({
+    usuarioId: '',
     origen: 'ACTIVA',
     presupuestoTexto: '',
     presupuestoValor: '',
@@ -327,8 +342,17 @@ function GestionClienteContent() {
   })
 
   useEffect(() => {
+    fetchCurrentUser()
     fetchClientes()
   }, [])
+
+  useEffect(() => {
+    if (currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') {
+      fetchUsuarios()
+    } else {
+      setUsuarios([])
+    }
+  }, [currentUser])
 
   useEffect(() => {
     // Si hay clienteId en la URL, seleccionarlo automáticamente
@@ -361,6 +385,41 @@ function GestionClienteContent() {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (!response.ok) return
+      const data = await response.json()
+      setCurrentUser(data?.user || null)
+    } catch (error) {
+      console.error('Error:', error)
+      setCurrentUser(null)
+    }
+  }
+
+  const fetchUsuarios = async () => {
+    try {
+      const response = await fetch('/api/auth/usuarios')
+      if (!response.ok) {
+        setUsuarios([])
+        return
+      }
+      const data = await response.json()
+      if (!Array.isArray(data)) {
+        setUsuarios([])
+        return
+      }
+      const agentes = data.filter((u: any) => {
+        const rol = String(u?.rol || '').toLowerCase()
+        return rol === 'agente' || rol === 'supervisor' || rol === 'admin'
+      })
+      setUsuarios(agentes.map((u: any) => ({ id: u.id, nombre: u.nombre, rol: u.rol })))
+    } catch (error) {
+      console.error('Error:', error)
+      setUsuarios([])
     }
   }
 
@@ -580,6 +639,7 @@ function GestionClienteContent() {
       if (formBusqueda.cochera) payload.cochera = formBusqueda.cochera
       if (formBusqueda.finalidad) payload.finalidad = formBusqueda.finalidad
       if (formBusqueda.observaciones) payload.observaciones = formBusqueda.observaciones
+      if (formBusqueda.usuarioId) payload.usuarioId = formBusqueda.usuarioId
 
       const response = await fetch('/api/busquedas', {
         method: 'POST',
@@ -592,6 +652,7 @@ function GestionClienteContent() {
         
         // Resetear formulario
         setFormBusqueda({
+          usuarioId: '',
           origen: 'ACTIVA',
           tipoPropiedad: '',
           presupuestoTexto: '',
@@ -887,6 +948,23 @@ function GestionClienteContent() {
                     {/* Form nueva búsqueda */}
                     {mostrarFormBusqueda && (
                       <form onSubmit={handleCrearBusqueda} className="mb-4 p-4 bg-slate-50 rounded-lg space-y-3">
+                        {(currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') && (
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Derivar a agente</label>
+                            <select
+                              value={formBusqueda.usuarioId}
+                              onChange={(e) => setFormBusqueda({ ...formBusqueda, usuarioId: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                            >
+                              <option value="">Sin derivar (queda para mi usuario)</option>
+                              {usuarios.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Origen *</label>
@@ -1562,7 +1640,6 @@ export default function GestionClientePage() {
     </Suspense>
   )
 }
-
 
 
 

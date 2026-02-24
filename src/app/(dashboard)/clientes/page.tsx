@@ -19,12 +19,31 @@ interface Cliente {
   telefono?: string
   email?: string
   notas?: string
+  usuarioId?: string
+  usuario?: {
+    id: string
+    nombre: string
+  } | null
   busquedas?: any[]
   operaciones?: any[]
 }
 
+interface CurrentUser {
+  id: string
+  nombre: string
+  rol: string
+}
+
+interface UsuarioOption {
+  id: string
+  nombre: string
+  rol?: string
+}
+
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [usuarios, setUsuarios] = useState<UsuarioOption[]>([])
   const [filtro, setFiltro] = useState('')
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -35,11 +54,21 @@ export default function ClientesPage() {
     telefono: '',
     email: '',
     notas: '',
+    usuarioId: '',
   })
 
   useEffect(() => {
+    fetchCurrentUser()
     fetchClientes()
   }, [])
+
+  useEffect(() => {
+    if (currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') {
+      fetchUsuarios()
+    } else {
+      setUsuarios([])
+    }
+  }, [currentUser])
 
   const fetchClientes = async () => {
     try {
@@ -50,6 +79,41 @@ export default function ClientesPage() {
       console.error('Error fetching clientes:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (!response.ok) return
+      const data = await response.json()
+      setCurrentUser(data?.user || null)
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+      setCurrentUser(null)
+    }
+  }
+
+  const fetchUsuarios = async () => {
+    try {
+      const response = await fetch('/api/auth/usuarios')
+      if (!response.ok) {
+        setUsuarios([])
+        return
+      }
+      const data = await response.json()
+      if (!Array.isArray(data)) {
+        setUsuarios([])
+        return
+      }
+      const agentes = data.filter((u: any) => {
+        const rol = String(u?.rol || '').toLowerCase()
+        return rol === 'agente' || rol === 'supervisor' || rol === 'admin'
+      })
+      setUsuarios(agentes.map((u: any) => ({ id: u.id, nombre: u.nombre, rol: u.rol })))
+    } catch (error) {
+      console.error('Error fetching usuarios:', error)
+      setUsuarios([])
     }
   }
 
@@ -76,7 +140,7 @@ export default function ClientesPage() {
   }
 
   const resetForm = () => {
-    setFormData({ nombreCompleto: '', telefono: '', email: '', notas: '' })
+    setFormData({ nombreCompleto: '', telefono: '', email: '', notas: '', usuarioId: '' })
     setEditingId(null)
   }
 
@@ -86,6 +150,7 @@ export default function ClientesPage() {
       telefono: cliente.telefono || '',
       email: cliente.email || '',
       notas: cliente.notas || '',
+      usuarioId: cliente.usuarioId || '',
     })
     setEditingId(cliente.id)
     setMostrarForm(true)
@@ -253,6 +318,26 @@ export default function ClientesPage() {
                   placeholder="Notas adicionales..."
                 />
               </div>
+
+              {(currentUser?.rol === 'admin' || currentUser?.rol === 'superadmin') && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Derivar a agente
+                  </label>
+                  <select
+                    value={formData.usuarioId}
+                    onChange={(e) => setFormData({ ...formData, usuarioId: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
+                  >
+                    <option value="">Sin derivar (queda para mi usuario)</option>
+                    {usuarios.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button type="submit" className="bg-green-600 hover:bg-green-700">

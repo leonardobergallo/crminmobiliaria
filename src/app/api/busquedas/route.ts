@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
     const {
       clienteId,
       origen,
+      usuarioId,
       presupuestoTexto,
       presupuestoValor,
       moneda,
@@ -194,28 +195,46 @@ export async function POST(request: NextRequest) {
 
     console.log('POST /api/busquedas: Cliente encontrado:', cliente.nombreCompleto)
 
-    // Verificar que el usuario creador existe en la base de datos (solo si vamos a usar createdBy)
-    let usuarioCreadorExiste = null
-    try {
-      usuarioCreadorExiste = await prisma.usuario.findUnique({
-        where: { id: currentUser.id }
+    let usuarioAsignadoId: string | null = null
+
+    if (currentUser.rol === 'agente') {
+      usuarioAsignadoId = currentUser.id
+    } else if ((currentUser.rol === 'admin' || currentUser.rol === 'superadmin') && typeof usuarioId === 'string' && usuarioId.trim()) {
+      const usuarioObjetivo = await prisma.usuario.findUnique({
+        where: { id: usuarioId.trim() },
+        select: { id: true, inmobiliariaId: true }
       })
-    } catch (dbError: any) {
-      console.error('POST /api/busquedas: Error al buscar usuario creador:', dbError)
-      // No fallar aquí, simplemente no asignar createdBy si hay error
-      usuarioCreadorExiste = null
+
+      if (!usuarioObjetivo) {
+        return NextResponse.json(
+          { error: 'Agente asignado no encontrado' },
+          { status: 404 }
+        )
+      }
+
+      if (
+        currentUser.rol !== 'superadmin' &&
+        currentUser.inmobiliariaId &&
+        usuarioObjetivo.inmobiliariaId !== currentUser.inmobiliariaId
+      ) {
+        return NextResponse.json(
+          { error: 'No puedes asignar búsquedas a usuarios de otra inmobiliaria' },
+          { status: 403 }
+        )
+      }
+
+      usuarioAsignadoId = usuarioObjetivo.id
+    } else if (cliente.usuarioId) {
+      usuarioAsignadoId = cliente.usuarioId
+    } else {
+      usuarioAsignadoId = currentUser.id
     }
 
-    if (!usuarioCreadorExiste) {
-      console.warn('POST /api/busquedas: Usuario creador no existe en BD, continuando sin createdBy:', currentUser.id)
-      // No fallar, simplemente no asignar createdBy (es opcional en el schema)
-    }
-
-    // Si el cliente no tiene usuarioId, asignarlo
-    if (!cliente.usuarioId && currentUser.rol === 'agente') {
+    // Si cambia el agente objetivo, actualizar cliente para que le aparezca en su pipeline.
+    if (usuarioAsignadoId && cliente.usuarioId !== usuarioAsignadoId) {
       await prisma.cliente.update({
         where: { id: clienteId },
-        data: { usuarioId: currentUser.id }
+        data: { usuarioId: usuarioAsignadoId }
       })
     }
 
@@ -225,13 +244,9 @@ export async function POST(request: NextRequest) {
       origen: origen.trim(),
     }
 
-    // TEMPORAL: No usar createdBy hasta que se regenere el cliente de Prisma
-    // El campo existe en el schema pero el cliente de Prisma no lo reconoce aún
-    // Por ahora, el agente se puede rastrear a través de cliente.usuarioId
-    // TODO: Descomentar después de ejecutar `npx prisma generate`
-    // if (usuarioCreadorExiste) {
-    //   busquedaData.createdBy = currentUser.id
-    // }
+    if (usuarioAsignadoId) {
+      busquedaData.createdBy = usuarioAsignadoId
+    }
 
     // Campos opcionales - solo agregar si tienen valores válidos (no null, no undefined, no string vacío)
     if (presupuestoTexto && typeof presupuestoTexto === 'string') {
