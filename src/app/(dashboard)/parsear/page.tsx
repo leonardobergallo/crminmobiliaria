@@ -32,6 +32,17 @@ type ManualLinkDraft = {
   url: string
 }
 
+type ForcedPortalCard = {
+  sitio: string
+  titulo: string
+  precio: string
+  ubicacion: string
+  url: string
+  img: null
+  origen: 'URL_PUNTUAL'
+  esSugerido: true
+}
+
 const BUSQUEDA_DRAFT_KEY = 'busquedaDraftFromUltimaWeb'
 
 const MERCADO_UNICO_INMOBILIARIAS = [
@@ -209,6 +220,9 @@ function ParsearBusquedaContent() {
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [manualLinks, setManualLinks] = useState<ManualLinkDraft[]>([{ id: 'manual-1', titulo: '', url: '' }])
   const [manualLinksSeleccionados, setManualLinksSeleccionados] = useState<Set<string>>(new Set())
+  const [forcedUrl, setForcedUrl] = useState('')
+  const [forcedTitle, setForcedTitle] = useState('')
+  const [forcedPortalCards, setForcedPortalCards] = useState<ForcedPortalCard[]>([])
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
   const [scrapedPage, setScrapedPage] = useState(1)
   const SCRAPED_PAGE_SIZE = 10
@@ -403,10 +417,70 @@ function ParsearBusquedaContent() {
     () => (inmoMercadoUnico ? getSitioOficialInmo(inmoMercadoUnico) : null),
     [inmoMercadoUnico]
   )
+
+  const getSitioFromUrl = (url: string): string => {
+    try {
+      const host = new URL(url).hostname.toLowerCase()
+      if (host.includes('zonaprop')) return 'ZonaProp'
+      if (host.includes('argenprop')) return 'ArgenProp'
+      if (host.includes('mercadolibre')) return 'MercadoLibre'
+      if (host.includes('remax')) return 'Remax'
+      if (host.includes('buscainmueble')) return 'Buscainmueble'
+      return host.replace(/^www\./, '') || 'Portal'
+    } catch {
+      return 'Portal'
+    }
+  }
+
+  const agregarUrlPuntualComoCard = () => {
+    const url = forcedUrl.trim()
+    if (!url) return
+
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      alert('URL invalida. Debe empezar con http:// o https://')
+      return
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      alert('URL invalida. Solo se permiten enlaces http/https.')
+      return
+    }
+
+    const sitio = getSitioFromUrl(url)
+    const titulo = forcedTitle.trim() || `${sitio}: propiedad puntual`
+    const item: ForcedPortalCard = {
+      sitio,
+      titulo,
+      precio: 'Consultar',
+      ubicacion: 'Santa Fe Capital',
+      url,
+      img: null,
+      origen: 'URL_PUNTUAL',
+      esSugerido: true,
+    }
+
+    setForcedPortalCards((prev) => {
+      if (prev.some((p) => p.url === item.url)) return prev
+      return [item, ...prev]
+    })
+    setSeleccionadas(new Set())
+    setForcedUrl('')
+    setForcedTitle('')
+  }
+
+  const quitarUrlPuntual = (url: string) => {
+    setForcedPortalCards((prev) => prev.filter((item) => item.url !== url))
+    setSeleccionadas(new Set())
+  }
+
   const scrapedItemsConIndice = useMemo(() => {
-    const items = Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems : []
+    const scraped = Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems : []
+    const items = [...forcedPortalCards, ...scraped]
     return items.map((item: any, idx: number) => ({ item, idx }))
-  }, [resultado])
+  }, [resultado, forcedPortalCards])
   const scrapedTotalPages = Math.max(1, Math.ceil(scrapedItemsConIndice.length / SCRAPED_PAGE_SIZE))
   const scrapedItemsPaginados = scrapedItemsConIndice.slice(
     (scrapedPage - 1) * SCRAPED_PAGE_SIZE,
@@ -507,8 +581,8 @@ function ParsearBusquedaContent() {
         const w = resultado.webMatches[i]
         return { tipo: 'externo', item: { url: w.url, titulo: w.titulo || w.sitio || 'Link sugerido' } }
       }
-      if (tipo === 'scraped' && resultado?.scrapedItems?.[i]) {
-        const s = resultado.scrapedItems[i]
+      if (tipo === 'scraped' && scrapedItemsConIndice?.[i]?.item) {
+        const s = scrapedItemsConIndice[i].item
         return { tipo: 'externo', item: { url: s.url, titulo: s.titulo || s.sitio || 'Portal' } }
       }
       if (tipo === 'match' && resultado?.matches?.[i]) return { tipo: 'match', item: resultado.matches[i] }
@@ -568,6 +642,9 @@ function ParsearBusquedaContent() {
     setSeleccionadas(new Set())
     setManualLinks([{ id: 'manual-1', titulo: '', url: '' }])
     setManualLinksSeleccionados(new Set())
+    setForcedPortalCards([])
+    setForcedUrl('')
+    setForcedTitle('')
     try {
       const mensaje = buildMensajeFromBusqueda(busquedaSeleccionada)
       const res = await fetch('/api/parsear-busqueda', {
@@ -897,6 +974,43 @@ function ParsearBusquedaContent() {
                     </a>
                   </div>
                 </div>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                  <div className="text-xs font-semibold text-emerald-800">URL puntual (forzar card)</div>
+                  <div className="text-xs text-emerald-700">
+                    Pega una publicacion puntual para sumarla como card seleccionable.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <Input
+                      value={forcedTitle}
+                      onChange={(e) => setForcedTitle(e.target.value)}
+                      placeholder="Titulo opcional (ej: Depto 1D Tribunales)"
+                    />
+                    <Input
+                      value={forcedUrl}
+                      onChange={(e) => setForcedUrl(e.target.value)}
+                      placeholder="https://www.zonaprop.com.ar/..."
+                    />
+                    <Button
+                      type="button"
+                      onClick={agregarUrlPuntualComoCard}
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      Agregar como card
+                    </Button>
+                  </div>
+                  {forcedPortalCards.length > 0 && (
+                    <div className="space-y-1">
+                      {forcedPortalCards.map((item) => (
+                        <div key={item.url} className="flex items-center justify-between gap-2 text-xs text-emerald-900 bg-white border border-emerald-200 rounded px-2 py-1">
+                          <span className="truncate">{item.titulo} - {item.url}</span>
+                          <Button type="button" size="sm" variant="outline" onClick={() => quitarUrlPuntual(item.url)}>
+                            Quitar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {scrapedItemsConIndice.length > 0 ? (
                   <>
                     <div className="flex items-center justify-between text-xs text-slate-600">
@@ -1140,5 +1254,3 @@ export default function ParsearBusquedaPage() {
     </Suspense>
   )
 }
-
-

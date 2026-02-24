@@ -490,11 +490,7 @@ export async function POST(request: NextRequest) {
       SCRAPED_MAX_TOTAL,
       SCRAPED_MAX_PER_PORTAL
     )
-    const fallbackPortales = construirFallbackPortalesDesdeLinks(busquedaParseada, webMatches as any)
-    const scrapedItemsFinalBase = scrapedDiversificado.length > 0
-      ? scrapedDiversificado
-      : fallbackPortales.slice(0, Math.min(20, SCRAPED_MAX_TOTAL))
-    const scrapedItemsFinal = scrapedItemsFinalBase.slice(0, 20)
+    const scrapedItemsFinal = scrapedDiversificado.slice(0, 20)
     const portalStats = {
       mercadolibre: mlItems.length,
       argenprop: apItems.length,
@@ -503,7 +499,7 @@ export async function POST(request: NextRequest) {
       buscainmueble: biItems.length,
       totalUnicos: uniqueScraped.length,
       totalDiversificados: Math.min(scrapedDiversificado.length, 20),
-      totalFallbackLinks: scrapedDiversificado.length === 0 ? fallbackPortales.length : 0,
+      totalFallbackLinks: 0,
     }
 
     return NextResponse.json({
@@ -2641,7 +2637,6 @@ async function scrapearBuscainmueble(criterios: BusquedaParseada) {
     return []
   }
 }
-
 
 
 
