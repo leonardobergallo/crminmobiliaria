@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -247,6 +247,7 @@ export default function BusquedasPage() {
   })
 
   const [clientes, setClientes] = useState<any[]>([])
+  const [buscandoPropiedadesId, setBuscandoPropiedadesId] = useState<string | null>(null)
 
   const resetBusquedaForm = () => {
     setFormData({
@@ -326,6 +327,26 @@ export default function BusquedasPage() {
     setEditandoBusquedaId(busqueda.id)
     setMostrarForm(true)
     setBusquedaEnVista(busqueda)
+  }
+
+  const buscarPropiedades = async (busqueda: Busqueda) => {
+    setBuscandoPropiedadesId(busqueda.id)
+    setAnalisisError(null)
+    try {
+      const response = await fetch(`/api/busquedas/${busqueda.id}/buscar-propiedades`)
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        setAnalisisError(err?.error || 'Error al buscar propiedades')
+        return
+      }
+      const data = await response.json()
+      setAnalisisResultado({ data: { ...data, scrapedItems: data.items, busquedaParseada: data.criterios } })
+      setBusquedaEnVista(busqueda)
+    } catch (error: any) {
+      setAnalisisError(`Error de conexion: ${error?.message || 'desconocido'}`)
+    } finally {
+      setBuscandoPropiedadesId(null)
+    }
   }
 
   const eliminarBusqueda = async (busqueda: Busqueda) => {
@@ -755,6 +776,59 @@ export default function BusquedasPage() {
     }
     partes.push('Enviar opciones')
     return partes.join('. ') + '.'
+  }
+
+  const generarTextoCompartir = () => {
+    const criterios = analisisResultado?.data?.busquedaParseada
+    const items = analisisResultado?.data?.scrapedItems || []
+    if (!criterios && items.length === 0) return ''
+
+    const titulo = analisisResultado?.data?.titulo || [
+      criterios?.tipoPropiedad !== 'OTRO' ? criterios?.tipoPropiedad?.toLowerCase() : null,
+      criterios?.operacion === 'ALQUILER' ? 'en alquiler' : 'en venta',
+      criterios?.zonas?.[0] ? `en ${criterios.zonas[0]}` : null,
+      criterios?.presupuestoMax ? `hasta ${criterios.moneda} ${criterios.presupuestoMax?.toLocaleString()}` : null,
+    ].filter(Boolean).join(' - ')
+
+    const partes: string[] = [`*Busqueda: ${titulo}*`, '']
+
+    const selItems = Array.from(seleccionadas)
+      .filter(k => k.startsWith('scraped:'))
+      .map(k => {
+        const idx = parseInt(k.split(':')[1], 10)
+        return items[idx]
+      })
+      .filter(Boolean)
+
+    const itemsACompartir = selItems.length > 0 ? selItems : items.slice(0, 10)
+
+    itemsACompartir.forEach((item: any, i: number) => {
+      partes.push(`${i + 1}. *${item.titulo}*`)
+      if (item.precio) partes.push(`   ${item.precio}`)
+      if (item.ubicacion) partes.push(`   ${item.ubicacion}`)
+      if (item.url) partes.push(`   ${item.url}`)
+      partes.push('')
+    })
+
+    return partes.join('\n').trim()
+  }
+
+  const compartirPorWhatsApp = () => {
+    const texto = generarTextoCompartir()
+    if (!texto) return
+    const url = `https://wa.me/?text=${encodeURIComponent(texto)}`
+    window.open(url, '_blank')
+  }
+
+  const copiarResultados = async () => {
+    const texto = generarTextoCompartir()
+    if (!texto) return
+    try {
+      await navigator.clipboard.writeText(texto)
+      alert('Copiado al portapapeles')
+    } catch {
+      alert('Error al copiar')
+    }
   }
 
   const getPortalBadge = (sitio?: string | null): string => {
@@ -1495,6 +1569,15 @@ export default function BusquedasPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => buscarPropiedades(busqueda)}
+                          className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+                          disabled={buscandoPropiedadesId === busqueda.id}
+                        >
+                          {buscandoPropiedadesId === busqueda.id ? 'Buscando...' : 'Buscar'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => setBusquedaEnVista(busqueda)}
                           className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
                         >
@@ -1572,6 +1655,16 @@ export default function BusquedasPage() {
                     >
                       Guardar en Gestion del Cliente ({totalSeleccionadas})
                     </Button>
+                  )}
+                  {scrapedItems.length > 0 && (
+                    <>
+                      <Button type="button" variant="outline" onClick={compartirPorWhatsApp}>
+                        WhatsApp
+                      </Button>
+                      <Button type="button" variant="outline" onClick={copiarResultados}>
+                        Copiar
+                      </Button>
+                    </>
                   )}
                 </div>
 
