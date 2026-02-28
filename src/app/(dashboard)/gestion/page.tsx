@@ -1373,9 +1373,15 @@ function GestionClienteContent() {
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => setEnviosAEliminar(new Set())}
+                          onClick={() => {
+                            if (enviosAEliminar.size === envios.length) {
+                              setEnviosAEliminar(new Set())
+                            } else {
+                              setEnviosAEliminar(new Set(envios.map(e => e.id)))
+                            }
+                          }}
                         >
-                          Limpiar
+                          {enviosAEliminar.size === envios.length && envios.length > 0 ? 'Deseleccionar todo' : 'Seleccionar todo'}
                         </Button>
                         {envios.length > 0 && (
                           <Button 
@@ -1398,62 +1404,155 @@ function GestionClienteContent() {
                         No hay envíos registrados
                       </p>
                     ) : (
-                      <div className="space-y-3">
-                        {envios.map((envio) => (
-                          <div key={envio.id} className="p-3 border rounded-lg">
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-start gap-3 flex-1">
-                                <input
-                                  type="checkbox"
-                                  checked={enviosAEliminar.has(envio.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setEnviosAEliminar(prev => new Set(prev).add(envio.id))
-                                    } else {
-                                      setEnviosAEliminar(prev => {
-                                        const next = new Set(prev)
-                                        next.delete(envio.id)
-                                        return next
-                                      })
-                                    }
-                                  }}
-                                  className="w-4 h-4 mt-1"
-                                />
-                                <div className="flex-1">
-                                <div className="font-medium">
-                                  {envio.propiedad?.titulo || envio.propiedad?.ubicacion || envio.tituloExterno || envio.urlExterna}
+                      <div className="space-y-5">
+                        {(() => {
+                          const getPortal = (envio: Envio): { nombre: string; color: string } => {
+                            const url = (envio.urlExterna || envio.propiedad?.urlMls || '').toLowerCase()
+                            if (url.includes('mercadolibre')) return { nombre: 'MercadoLibre', color: 'bg-yellow-100 text-yellow-800' }
+                            if (url.includes('zonaprop')) return { nombre: 'ZonaProp', color: 'bg-purple-100 text-purple-800' }
+                            if (url.includes('argenprop')) return { nombre: 'ArgenProp', color: 'bg-red-100 text-red-800' }
+                            if (url.includes('buscainmueble')) return { nombre: 'Buscainmueble', color: 'bg-cyan-100 text-cyan-800' }
+                            if (url.includes('remax')) return { nombre: 'Remax', color: 'bg-blue-100 text-blue-800' }
+                            if (url.includes('properati')) return { nombre: 'Properati', color: 'bg-teal-100 text-teal-800' }
+                            if (envio.urlExterna) return { nombre: 'Link externo', color: 'bg-orange-100 text-orange-800' }
+                            if (envio.propiedad) return { nombre: 'CRM', color: 'bg-slate-200 text-slate-700' }
+                            return { nombre: 'Manual', color: 'bg-gray-100 text-gray-700' }
+                          }
+
+                          const SESSION_GAP_MS = 10 * 60 * 1000
+                          const sorted = [...envios].sort((a, b) => new Date(b.fechaEnvio).getTime() - new Date(a.fechaEnvio).getTime())
+                          const sessions: { label: string; fecha: Date; items: Envio[] }[] = []
+
+                          for (const envio of sorted) {
+                            const fecha = new Date(envio.fechaEnvio)
+                            const lastSession = sessions[sessions.length - 1]
+                            if (lastSession && Math.abs(lastSession.fecha.getTime() - fecha.getTime()) < SESSION_GAP_MS) {
+                              lastSession.items.push(envio)
+                            } else {
+                              const fechaStr = fecha.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                              const horaStr = fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                              sessions.push({ label: `${fechaStr} - ${horaStr} hs`, fecha, items: [envio] })
+                            }
+                          }
+
+                          return sessions.map((session, sIdx) => {
+                            const portalesConteo = new Map<string, { count: number; color: string }>()
+                            for (const e of session.items) {
+                              const p = getPortal(e)
+                              const existing = portalesConteo.get(p.nombre)
+                              if (existing) existing.count++
+                              else portalesConteo.set(p.nombre, { count: 1, color: p.color })
+                            }
+
+                            const sessionIds = session.items.map(e => e.id)
+                            const allSelected = sessionIds.every(id => enviosAEliminar.has(id))
+
+                            return (
+                              <div key={sIdx} className="border rounded-lg overflow-hidden shadow-sm">
+                                <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={allSelected}
+                                      onChange={() => {
+                                        if (allSelected) {
+                                          setEnviosAEliminar(prev => {
+                                            const next = new Set(prev)
+                                            sessionIds.forEach(id => next.delete(id))
+                                            return next
+                                          })
+                                        } else {
+                                          setEnviosAEliminar(prev => {
+                                            const next = new Set(prev)
+                                            sessionIds.forEach(id => next.add(id))
+                                            return next
+                                          })
+                                        }
+                                      }}
+                                      className="w-4 h-4"
+                                    />
+                                    <span className="font-semibold text-slate-800 text-sm">{session.label}</span>
+                                    <span className="text-xs text-slate-500 bg-white px-2 py-0.5 rounded-full border">
+                                      {session.items.length} {session.items.length === 1 ? 'propiedad' : 'propiedades'}
+                                    </span>
+                                  </div>
+                                  <div className="flex gap-1.5 flex-wrap">
+                                    {[...portalesConteo.entries()].map(([portal, info]) => (
+                                      <span key={portal} className={`text-xs px-2 py-0.5 rounded-full font-medium ${info.color}`}>
+                                        {portal} ({info.count})
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="text-sm text-slate-600">
-                                  {new Date(envio.fechaEnvio).toLocaleDateString('es-AR')}  -  
-                                  {envio.canal}
+                                <div className="divide-y">
+                                  {session.items.map((envio) => {
+                                    const portal = getPortal(envio)
+                                    return (
+                                      <div key={envio.id} className="px-4 py-3 hover:bg-slate-50 transition-colors">
+                                        <div className="flex justify-between items-start gap-2">
+                                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                                            <input
+                                              type="checkbox"
+                                              checked={enviosAEliminar.has(envio.id)}
+                                              onChange={(e) => {
+                                                if (e.target.checked) {
+                                                  setEnviosAEliminar(prev => new Set(prev).add(envio.id))
+                                                } else {
+                                                  setEnviosAEliminar(prev => {
+                                                    const next = new Set(prev)
+                                                    next.delete(envio.id)
+                                                    return next
+                                                  })
+                                                }
+                                              }}
+                                              className="w-4 h-4 mt-1 shrink-0"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-medium text-sm">
+                                                  {envio.propiedad?.titulo || envio.propiedad?.ubicacion || envio.tituloExterno || 'Propiedad'}
+                                                </span>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${portal.color}`}>
+                                                  {portal.nombre}
+                                                </span>
+                                              </div>
+                                              {(envio.urlExterna || envio.propiedad?.urlMls) && (
+                                                <a
+                                                  href={envio.urlExterna || envio.propiedad?.urlMls}
+                                                  target="_blank"
+                                                  rel="noopener"
+                                                  className="text-blue-600 text-xs hover:underline block mt-1 truncate"
+                                                >
+                                                  {envio.urlExterna || envio.propiedad?.urlMls}
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                          <select
+                                            value={envio.respuesta || ''}
+                                            onChange={(e) => handleActualizarRespuesta(envio.id, e.target.value)}
+                                            className={`text-sm px-2 py-1 rounded border shrink-0 ${
+                                              envio.respuesta === 'INTERESADO' ? 'bg-green-100 text-green-700' :
+                                              envio.respuesta === 'NO_INTERESADO' ? 'bg-red-100 text-red-700' :
+                                              envio.respuesta === 'VISITA_PROGRAMADA' ? 'bg-blue-100 text-blue-700' :
+                                              'bg-slate-100'
+                                            }`}
+                                          >
+                                            <option value="">Sin respuesta</option>
+                                            <option value="INTERESADO">Interesado</option>
+                                            <option value="NO_INTERESADO">No interesado</option>
+                                            <option value="VISITA_PROGRAMADA">Visita programada</option>
+                                            <option value="SIN_RESPUESTA">Sin respuesta</option>
+                                          </select>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                                {envio.urlExterna && (
-                                  <a href={envio.urlExterna} target="_blank" rel="noopener" className="text-blue-600 text-sm">
-                                    {envio.urlExterna}
-                                  </a>
-                                )}
                               </div>
-                              <div>
-                                <select
-                                  value={envio.respuesta || ''}
-                                  onChange={(e) => handleActualizarRespuesta(envio.id, e.target.value)}
-                                  className={`text-sm px-2 py-1 rounded border ${
-                                    envio.respuesta === 'INTERESADO' ? 'bg-green-100 text-green-700' :
-                                    envio.respuesta === 'NO_INTERESADO' ? 'bg-red-100 text-red-700' :
-                                    envio.respuesta === 'VISITA_PROGRAMADA' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100'
-                                  }`}
-                                >
-                                  <option value="">Sin respuesta</option>
-                                  <option value="INTERESADO">Interesado</option>
-                                  <option value="NO_INTERESADO">No interesado</option>
-                                  <option value="VISITA_PROGRAMADA">Visita programada</option>
-                                  <option value="SIN_RESPUESTA">â³ Sin respuesta</option>
-                                </select></div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                            )
+                          })
+                        })()}
                       </div>
                     )}
                   </CardContent>

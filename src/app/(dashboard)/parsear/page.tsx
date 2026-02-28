@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -423,9 +423,16 @@ function ParsearBusquedaContent() {
 
   const buildBusquedaLabel = (b: Busqueda) => {
     const parts = [b.tipoPropiedad || 'Propiedad']
-    if (b.ubicacionPreferida) parts.push(b.ubicacionPreferida)
+    if (b.ubicacionPreferida) {
+      const ubicParts = b.ubicacionPreferida.split(',').map(p => p.trim()).filter(Boolean)
+      const unique = [...new Set(ubicParts.map(p => p.toLowerCase()))].map((_, i) => ubicParts[i])
+      parts.push(unique.slice(0, 2).join(', '))
+    }
     if (b.presupuestoTexto) parts.push(b.presupuestoTexto)
-    return parts.join(' - ')
+    if (typeof b.dormitoriosMin === 'number' && b.dormitoriosMin > 0) {
+      parts.push(`${b.dormitoriosMin} dorm`)
+    }
+    return parts.join(' · ')
   }
 
   const buildMensajeFromBusqueda = (b: Busqueda) => {
@@ -619,63 +626,48 @@ function ParsearBusquedaContent() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</div>
-              <select
-                value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
-              >
-                <option value="">Seleccionar cliente...</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombreCompleto || c.nombre || c.id}
-                  </option>
-                ))}
-              </select>
-              {clienteId && (
-                <div className="text-sm text-slate-600">Seleccionado: {clienteLabel}</div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtrar busquedas</div>
-              <Input
-                value={busquedaFiltro}
-                onChange={(e) => setBusquedaFiltro(e.target.value)}
-                placeholder="Filtra por tipo, ubicacion, presupuesto o estado..."
-                disabled={!clienteId}
-              />
-              <div className="text-xs text-slate-500">
-                {clienteId ? `${busquedasFiltradas.length} busquedas encontradas` : 'Primero selecciona un cliente'}
-              </div>
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Busqueda activa</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</div>
             <select
-              value={busquedaId}
-              onChange={(e) => setBusquedaId(e.target.value)}
+              value={clienteId}
+              onChange={(e) => setClienteId(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-md bg-white"
-              disabled={!clienteId || !busquedasFiltradas.length}
             >
-              <option value="">Seleccionar busqueda...</option>
-              {busquedasFiltradas.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {buildBusquedaLabel(b)}
+              <option value="">Seleccionar cliente...</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombreCompleto || c.nombre || c.id}
                 </option>
               ))}
             </select>
           </div>
 
-          {!!busquedasFiltradas.length && (
+          {clienteId && busquedasOrdenadas.length > 3 && (
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtrar busquedas</div>
+              <Input
+                value={busquedaFiltro}
+                onChange={(e) => setBusquedaFiltro(e.target.value)}
+                placeholder="Filtra por tipo, ubicacion, presupuesto..."
+              />
+            </div>
+          )}
+
+          {clienteId && busquedasFiltradas.length === 0 && (
+            <div className="text-sm text-slate-500">Este cliente no tiene busquedas cargadas.</div>
+          )}
+
+          {busquedasFiltradas.length > 0 && (
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ultimas busquedas</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {busquedasFiltradas.length === 1 ? 'Busqueda del cliente' : `Busquedas del cliente (${busquedasFiltradas.length})`}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {busquedasFiltradas.slice(0, 6).map((b) => {
                   const isActive = b.id === busquedaId
+                  const ubicParts = (b.ubicacionPreferida || '').split(',').map(p => p.trim()).filter(Boolean)
+                  const ubicUnique = [...new Set(ubicParts.map(p => p.toLowerCase()))].map((_, i) => ubicParts[i])
+                  const ubicLabel = ubicUnique.slice(0, 2).join(', ') || 'Sin ubicacion'
                   return (
                     <button
                       key={b.id}
@@ -683,13 +675,20 @@ function ParsearBusquedaContent() {
                       onClick={() => setBusquedaId(b.id)}
                       className={`text-left p-3 rounded-xl border transition-colors ${
                         isActive
-                          ? 'border-sky-300 bg-sky-50'
+                          ? 'border-sky-400 bg-sky-50 ring-1 ring-sky-200'
                           : 'border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/50'
                       }`}
                     >
-                      <div className="text-sm font-semibold text-slate-900">{b.tipoPropiedad || 'Propiedad'}</div>
-                      <div className="text-xs text-slate-600 line-clamp-1">{b.ubicacionPreferida || 'Sin ubicacion'}</div>
-                      <div className="text-xs text-slate-500 mt-1">{b.presupuestoTexto || 'Sin presupuesto'}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-slate-900">{b.tipoPropiedad || 'Propiedad'}</span>
+                        {typeof b.dormitoriosMin === 'number' && b.dormitoriosMin > 0 && (
+                          <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{b.dormitoriosMin} dorm</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-600 mt-1">{ubicLabel}</div>
+                      {b.presupuestoTexto && (
+                        <div className="text-xs font-medium text-emerald-700 mt-1">{b.presupuestoTexto}</div>
+                      )}
                     </button>
                   )
                 })}
@@ -698,11 +697,34 @@ function ParsearBusquedaContent() {
           )}
 
           {busquedaSeleccionada && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input readOnly value={`Tipo: ${busquedaSeleccionada.tipoPropiedad || '-'}`} />
-              <Input readOnly value={`Ubicacion: ${busquedaSeleccionada.ubicacionPreferida || '-'}`} />
-              <Input readOnly value={`Presupuesto: ${busquedaSeleccionada.presupuestoTexto || '-'}`} />
-              <Input readOnly value={`Dormitorios min: ${busquedaSeleccionada.dormitoriosMin ?? '-'}`} />
+            <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-sky-600">Busqueda seleccionada</div>
+              <div className="flex flex-wrap gap-2">
+                {busquedaSeleccionada.tipoPropiedad && (
+                  <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700">
+                    {busquedaSeleccionada.tipoPropiedad}
+                  </span>
+                )}
+                {busquedaSeleccionada.ubicacionPreferida && (() => {
+                  const parts = busquedaSeleccionada.ubicacionPreferida!.split(',').map(p => p.trim()).filter(Boolean)
+                  const unique = [...new Set(parts.map(p => p.toLowerCase()))].map((_, i) => parts[i])
+                  return (
+                    <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700">
+                      {unique.join(', ')}
+                    </span>
+                  )
+                })()}
+                {busquedaSeleccionada.presupuestoTexto && (
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">
+                    {busquedaSeleccionada.presupuestoTexto}
+                  </span>
+                )}
+                {typeof busquedaSeleccionada.dormitoriosMin === 'number' && busquedaSeleccionada.dormitoriosMin > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700">
+                    {busquedaSeleccionada.dormitoriosMin}+ dormitorios
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
