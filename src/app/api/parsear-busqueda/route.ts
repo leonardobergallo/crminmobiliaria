@@ -874,8 +874,18 @@ async function encontrarMatchesEnDb(
     return true
   })
 
-  // Limite configurable para evitar respuesta excesiva en casos extremos.
-  return propiedadesValidadas.slice(0, MAX_DB_MATCHES)
+  // Deduplicar propiedades con misma dirección/ubicación y precio
+  const deduped: typeof propiedadesValidadas = []
+  const seen = new Set<string>()
+  for (const prop of propiedadesValidadas) {
+    const dir = (prop.direccion || prop.ubicacion || prop.titulo || '').toLowerCase().replace(/\s+/g, ' ').trim()
+    const key = `${dir}|${prop.precio}|${prop.moneda}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(prop)
+  }
+
+  return deduped.slice(0, MAX_DB_MATCHES)
 }
 
 function construirFallbackPortalesDesdeLinks(
