@@ -68,7 +68,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { nombre, logo, whatsapp, email, direccion, colorPrimario, activa } = body
+    const { nombre, logo, whatsapp, email, direccion, colorPrimario, activa, comisionVenta, comisionAgente } = body
 
     const inmobiliaria = await prisma.inmobiliaria.update({
       where: { id },
@@ -80,6 +80,8 @@ export async function PUT(
         ...(direccion !== undefined && { direccion }),
         ...(colorPrimario !== undefined && { colorPrimario }),
         ...(activa !== undefined && { activa }),
+        ...(comisionVenta !== undefined && { comisionVenta: Number(comisionVenta) }),
+        ...(comisionAgente !== undefined && { comisionAgente: Number(comisionAgente) }),
       }
     })
 

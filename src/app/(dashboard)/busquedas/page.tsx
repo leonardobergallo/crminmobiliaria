@@ -183,7 +183,10 @@ const normalizeInmoName = (value: string) =>
     .toLowerCase()
 
 const buildSitioOficialSearchUrl = (inmo: string) =>
-  `https://www.google.com/search?q=${encodeURIComponent(`"${inmo}" inmobiliaria santa fe sitio oficial`)}`
+  `https://www.google.com/search?q=${encodeURIComponent(`${inmo} inmobiliaria santa fe sitio web`)}`
+
+const buildMercadoUnicoSearchUrl = (inmo: string) =>
+  `https://www.google.com/search?q=${encodeURIComponent(`${inmo} propiedades site:mercado-unico.com`)}`
 
 const getSitioOficialInmo = (inmo: string) => {
   const key = normalizeInmoName(inmo)
@@ -193,6 +196,17 @@ const getSitioOficialInmo = (inmo: string) => {
 const hasSitioOficialInmo = (inmo: string) => {
   const key = normalizeInmoName(inmo)
   return Boolean(MERCADO_UNICO_SITIOS_OFICIALES[key])
+}
+
+/** Devuelve la URL principal para la inmobiliaria: sitio oficial si existe, sino Mercado Único */
+const getInmoPrimaryUrl = (inmo: string) => {
+  const key = normalizeInmoName(inmo)
+  if (MERCADO_UNICO_SITIOS_OFICIALES[key]) return MERCADO_UNICO_SITIOS_OFICIALES[key]
+  return buildMercadoUnicoSearchUrl(inmo)
+}
+
+const getInmoPrimaryLabel = (inmo: string) => {
+  return hasSitioOficialInmo(inmo) ? 'Abrir sitio oficial' : 'Buscar en Mercado Único'
 }
 
 export default function BusquedasPage() {
@@ -327,6 +341,7 @@ export default function BusquedasPage() {
     setEditandoBusquedaId(busqueda.id)
     setMostrarForm(true)
     setBusquedaEnVista(busqueda)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const buscarPropiedades = async (busqueda: Busqueda) => {
@@ -1033,7 +1048,17 @@ export default function BusquedasPage() {
         })
     : []
 
-  if (loading) return <div className="text-center py-8">Cargando...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex flex-col items-center gap-4 text-slate-500">
+        <svg className="animate-spin h-8 w-8 text-sky-500" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span className="text-sm font-medium">Cargando búsquedas...</span>
+      </div>
+    </div>
+  )
 
   const propiedadesSeleccionadas = Array.from(seleccionadas).filter((item) => item.startsWith('match:')).length
   const externasSeleccionadas = Array.from(seleccionadas).filter((item) => item.startsWith('web:') || item.startsWith('scraped:')).length
@@ -1048,9 +1073,11 @@ export default function BusquedasPage() {
   const portalSearchLinks = getPortalSearchLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
   const analisisExtraLinks = getAnalisisExtraLinks(analisisResultado?.data?.busquedaParseada, filtrosPortales)
   const inmoMercadoUnicoUrl = inmoMercadoUnico
-    ? `https://www.google.com/search?q=${encodeURIComponent(`site:mercado-unico.com \"${inmoMercadoUnico}\" santa fe ver propiedades`)}` 
+    ? buildMercadoUnicoSearchUrl(inmoMercadoUnico)
     : null
   const inmoSitioOficialUrl = inmoMercadoUnico ? getSitioOficialInmo(inmoMercadoUnico) : null
+  const inmoPrimaryUrl = inmoMercadoUnico ? getInmoPrimaryUrl(inmoMercadoUnico) : null
+  const inmoPrimaryLabel = inmoMercadoUnico ? getInmoPrimaryLabel(inmoMercadoUnico) : ''
 
   const tableroAgentes = currentUser?.rol === 'admin'
     ? Object.values(
@@ -1076,8 +1103,13 @@ export default function BusquedasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Busquedas</h1>
+      <div className="flex justify-between items-center animate-fade-in-up">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Búsquedas</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {filtrados.length} búsqueda{filtrados.length !== 1 ? 's' : ''} encontrada{filtrados.length !== 1 ? 's' : ''}
+          </p>
+        </div>
         <Button
           onClick={() => {
             if (mostrarForm) resetBusquedaForm()
@@ -1088,10 +1120,20 @@ export default function BusquedasPage() {
           + Nueva Busqueda
         </Button>
       </div>
-      <Card className="border-slate-200 bg-slate-50">
-        <CardContent className="pt-4">
-          <div className="text-sm text-slate-700">
-            Flujo recomendado: `1)` crear busqueda, `2)` revisar detalle, `3)` editar si hace falta, `4)` eliminar si ya no corresponde.
+      <Card className="border-slate-200 bg-white/80 backdrop-blur-sm animate-fade-in-up stagger-1">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex items-center gap-3 text-sm text-slate-600">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">1</span>
+            <span>Crear búsqueda</span>
+            <span className="text-slate-300">→</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">2</span>
+            <span>Revisar detalle</span>
+            <span className="text-slate-300">→</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">3</span>
+            <span>Editar si hace falta</span>
+            <span className="text-slate-300">→</span>
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">4</span>
+            <span>Eliminar si ya no corresponde</span>
           </div>
         </CardContent>
       </Card>
@@ -1453,65 +1495,68 @@ export default function BusquedasPage() {
       )}
 
       {/* Filtros */}
-      <div className="flex gap-4">
-        <Input
-          type="text"
-          placeholder="Buscar por cliente (nombre completo)..."
-          value={filtro}
-          onChange={(e) => setFiltro(e.target.value)}
-          className="max-w-md"
-        />
-        <select
-          value={filtroPrioridad}
-          onChange={(e) => setFiltroPrioridad(e.target.value as 'TODAS' | PrioridadNivel)}
-          className="px-3 py-2 border border-slate-300 rounded-md"
-        >
-          <option value="TODAS">Todas las prioridades</option>
-          <option value="ALTA">Solo ALTA</option>
-          <option value="MEDIA">Solo MEDIA</option>
-          <option value="BAJA">Solo BAJA</option>
-        </select>
-        <label className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={ordenarPorPrioridad}
-            onChange={(e) => setOrdenarPorPrioridad(e.target.checked)}
-          />
-          Ordenar por prioridad
-        </label>
-        <select
-          value={filtroEstado}
-          onChange={(e) => setFiltroEstado(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded-md"
-        >
-          <option value="">Todos los estados</option>
-          <option value="NUEVO">Nuevo</option>
-          <option value="CALIFICADO">Calificado</option>
-          <option value="VISITA">Visita</option>
-          <option value="RESERVA">Reserva</option>
-          <option value="CERRADO">Cerrado</option>
-        </select>
-        {currentUser?.rol === 'admin' && (
-          <select
-            value={filtroAgente}
-            onChange={(e) => setFiltroAgente(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-md"
-          >
-            <option value="">Todos los agentes</option>
-            {usuarios.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombre}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <p className="text-xs text-slate-500">
-        Usa estos filtros para encontrar rapido una busqueda y verla, editarla o eliminarla sin salir de esta pagina.
-      </p>
+      <Card className="border-slate-200 bg-white animate-fade-in-up stagger-2">
+        <CardContent className="pt-4 pb-3">
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex-1 min-w-[200px] max-w-md">
+              <Input
+                type="text"
+                placeholder="🔍 Buscar por cliente..."
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+              />
+            </div>
+            <select
+              value={filtroPrioridad}
+              onChange={(e) => setFiltroPrioridad(e.target.value as 'TODAS' | PrioridadNivel)}
+              className="px-3 py-2 border border-slate-300 rounded-md text-sm"
+            >
+              <option value="TODAS">Todas las prioridades</option>
+              <option value="ALTA">Solo ALTA</option>
+              <option value="MEDIA">Solo MEDIA</option>
+              <option value="BAJA">Solo BAJA</option>
+            </select>
+            <label className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-700 bg-white cursor-pointer hover:bg-slate-50">
+              <input
+                type="checkbox"
+                checked={ordenarPorPrioridad}
+                onChange={(e) => setOrdenarPorPrioridad(e.target.checked)}
+                className="rounded"
+              />
+              Ordenar por prioridad
+            </label>
+            <select
+              value={filtroEstado}
+              onChange={(e) => setFiltroEstado(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-md text-sm"
+            >
+              <option value="">Todos los estados</option>
+              <option value="NUEVO">Nuevo</option>
+              <option value="CALIFICADO">Calificado</option>
+              <option value="VISITA">Visita</option>
+              <option value="RESERVA">Reserva</option>
+              <option value="CERRADO">Cerrado</option>
+            </select>
+            {currentUser?.rol === 'admin' && (
+              <select
+                value={filtroAgente}
+                onChange={(e) => setFiltroAgente(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-md text-sm"
+              >
+                <option value="">Todos los agentes</option>
+                {usuarios.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabla */}
-      <Card>
+      <Card className="animate-fade-in-up stagger-3">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -1528,8 +1573,15 @@ export default function BusquedasPage() {
             <TableBody>
               {filtrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.rol === 'admin' ? 7 : 6} className="text-center py-8">
-                    No hay busquedas
+                  <TableCell colSpan={currentUser?.rol === 'admin' ? 7 : 6} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                      </svg>
+                      <p className="text-slate-500 font-medium">No hay búsquedas</p>
+                      <p className="text-sm text-slate-400">Creá una nueva búsqueda o ajustá los filtros</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1569,16 +1621,7 @@ export default function BusquedasPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => buscarPropiedades(busqueda)}
-                          className="h-8 px-3 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
-                          disabled={buscandoPropiedadesId === busqueda.id}
-                        >
-                          {buscandoPropiedadesId === busqueda.id ? 'Buscando...' : 'Buscar'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setBusquedaEnVista(busqueda)}
+                          onClick={() => { setBusquedaEnVista(busqueda); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                           className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
                         >
                           Ver
@@ -1715,42 +1758,36 @@ export default function BusquedasPage() {
                         </div>
                         <div className="border-t border-slate-200 pt-3">
                           <div className="text-xs font-semibold text-slate-700 mb-2">Paso 3 · Inmobiliarias Santa Fe</div>
-                          <div className="text-xs text-slate-500 mb-2">Elegi una inmobiliaria para abrir directorio, busqueda o sitio oficial.</div>
+                          <div className="text-xs text-slate-500 mb-2">Elegí una inmobiliaria: si tiene sitio oficial va directo, sino busca en Mercado Único.</div>
                         </div>
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                           <select
                             value={inmoMercadoUnico}
                             onChange={(e) => setInmoMercadoUnico(e.target.value)}
-                            className="px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
+                            className="md:col-span-2 px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
                           >
-                            <option value="">Elegir inmobiliaria (Mercado Unico)</option>
+                            <option value="">Elegir inmobiliaria...</option>
                             {MERCADO_UNICO_INMOBILIARIAS.map((inmo) => (
                               <option key={inmo} value={inmo}>
                                 {inmo}
-                                {hasSitioOficialInmo(inmo) ? ' (sitio oficial)' : ''}
+                                {hasSitioOficialInmo(inmo) ? ' ✓ sitio oficial' : ''}
                               </option>
                             ))}
                           </select>
                           <a
-                            href="https://www.mercado-unico.com/"
+                            href={inmoPrimaryUrl || '#'}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            Abrir directorio MU
-                          </a>
-                          <a
-                            href={inmoMercadoUnicoUrl || '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-disabled={!inmoMercadoUnicoUrl}
+                            aria-disabled={!inmoPrimaryUrl}
                             className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
-                              inmoMercadoUnicoUrl
-                                ? 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
-                                : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                              !inmoPrimaryUrl
+                                ? 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                                : hasSitioOficialInmo(inmoMercadoUnico)
+                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                  : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
                             }`}
                           >
-                            Buscar en directorio
+                            {inmoPrimaryLabel || 'Elegí inmobiliaria'}
                           </a>
                           <a
                             href={inmoSitioOficialUrl || '#'}
@@ -1759,11 +1796,19 @@ export default function BusquedasPage() {
                             aria-disabled={!inmoSitioOficialUrl}
                             className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
                               inmoSitioOficialUrl
-                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                ? 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
                                 : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
                             }`}
                           >
-                            Sitio oficial
+                            Buscar sitio web
+                          </a>
+                          <a
+                            href="https://www.mercado-unico.com/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            Directorio MU
                           </a>
                         </div>
                       </div>

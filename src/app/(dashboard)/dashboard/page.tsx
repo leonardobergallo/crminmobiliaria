@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import DemoBanner from '@/components/DemoBanner'
 
 interface Stats {
   buscadasActivas: number
@@ -18,6 +19,7 @@ interface Stats {
 interface CurrentUser {
   id: string
   nombre: string
+  email: string
   rol: string
 }
 
@@ -199,10 +201,23 @@ export default function Dashboard() {
     }
   }
 
+  // Greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Buenos días'
+    if (hour < 19) return 'Buenas tardes'
+    return 'Buenas noches'
+  }
+
+  const DEMO_EMAILS = ['demo@inmobiliar.com', 'demo@misfinanzas.com']
+  const isDemo = currentUser?.email ? DEMO_EMAILS.includes(currentUser.email.toLowerCase()) : false
+
+  const totalBusquedas = stats.buscadasActivas + stats.buscadasCalificadas + stats.visitas + stats.reservas + stats.cerrados
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="flex items-center gap-3 text-slate-500">
-        <svg className="animate-spin h-6 w-6 text-sky-500" viewBox="0 0 24 24">
+      <div className="flex flex-col items-center gap-4 text-slate-500">
+        <svg className="animate-spin h-8 w-8 text-sky-500" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
         </svg>
@@ -214,20 +229,27 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in-up">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Vista general de tu actividad</p>
+          <h1 className="text-2xl font-bold text-slate-800">
+            {getGreeting()}, {stats.agente.split(' ')[0]}
+          </h1>
+          <p className="text-slate-500 text-sm mt-0.5">
+            {totalBusquedas > 0
+              ? `Tenés ${totalBusquedas} búsqueda${totalBusquedas !== 1 ? 's' : ''} en tu pipeline`
+              : 'Tu pipeline está vacío. ¡Hora de cargar búsquedas!'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors">
-            <Icons.bell />
-          </button>
-          <button className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-colors">
+          <button 
+            onClick={fetchStats}
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 transition-all hover:scale-105 active:scale-95 hover-tooltip"
+            data-tooltip="Actualizar"
+          >
             <Icons.refresh />
           </button>
           <div className="bg-white rounded-xl border border-slate-200 px-4 py-2 flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+            <div className="w-8 h-8 bg-gradient-to-br from-sky-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md shadow-sky-200">
               {stats.agente.charAt(0).toUpperCase()}
             </div>
             <div className="hidden sm:block">
@@ -238,123 +260,114 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Demo Banner */}
+      {isDemo && <DemoBanner />}
+
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Búsquedas Activas</p>
-                <p className="text-3xl font-bold text-sky-600">{stats.buscadasActivas}</p>
-              </div>
-              <div className="p-3 bg-sky-50 rounded-xl text-sky-500">
-                <Icons.search />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Calificadas</p>
-                <p className="text-3xl font-bold text-violet-600">{stats.buscadasCalificadas}</p>
-              </div>
-              <div className="p-3 bg-violet-50 rounded-xl text-violet-500">
-                <Icons.star />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">En Visita</p>
-                <p className="text-3xl font-bold text-amber-600">{stats.visitas}</p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-xl text-amber-500">
-                <Icons.calendar />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Reservas</p>
-                <p className="text-3xl font-bold text-emerald-600">{stats.reservas}</p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-xl text-emerald-500">
-                <Icons.bookmark />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Cerrados</p>
-                <p className="text-3xl font-bold text-slate-700">{stats.cerrados}</p>
-              </div>
-              <div className="p-3 bg-slate-100 rounded-xl text-slate-500">
-                <Icons.check />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white hover:shadow-md transition-shadow">
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Comisiones (ARS)</p>
-                <p className="text-2xl font-bold text-green-600">${stats.comisionesTotales.toLocaleString()}</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-xl text-green-500">
-                <Icons.dollar />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { label: 'Búsquedas Activas', value: stats.buscadasActivas, color: 'text-sky-600', bg: 'bg-sky-50', iconColor: 'text-sky-500', icon: Icons.search, href: '/busquedas?estado=NUEVO' },
+          { label: 'Calificadas', value: stats.buscadasCalificadas, color: 'text-violet-600', bg: 'bg-violet-50', iconColor: 'text-violet-500', icon: Icons.star, href: '/busquedas?estado=CALIFICADO' },
+          { label: 'En Visita', value: stats.visitas, color: 'text-amber-600', bg: 'bg-amber-50', iconColor: 'text-amber-500', icon: Icons.calendar, href: '/busquedas?estado=VISITA' },
+          { label: 'Reservas', value: stats.reservas, color: 'text-emerald-600', bg: 'bg-emerald-50', iconColor: 'text-emerald-500', icon: Icons.bookmark, href: '/busquedas?estado=RESERVA' },
+          { label: 'Cerrados', value: stats.cerrados, color: 'text-slate-700', bg: 'bg-slate-100', iconColor: 'text-slate-500', icon: Icons.check, href: '/busquedas?estado=CERRADO' },
+          { label: 'Comisiones (ARS)', value: stats.comisionesTotales, color: 'text-green-600', bg: 'bg-green-50', iconColor: 'text-green-500', icon: Icons.dollar, href: '/operaciones', isCurrency: true },
+        ].map((kpi, index) => {
+          const IconComponent = kpi.icon
+          return (
+            <Card 
+              key={kpi.label}
+              className={`border-none shadow-sm bg-white card-interactive animate-fade-in-up stagger-${index + 1}`}
+              onClick={() => router.push(kpi.href)}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500 mb-1">{kpi.label}</p>
+                    <p className={`${kpi.isCurrency ? 'text-2xl' : 'text-3xl'} font-bold ${kpi.color}`}>
+                      {kpi.isCurrency ? `$${kpi.value.toLocaleString()}` : kpi.value}
+                    </p>
+                  </div>
+                  <div className={`p-3 ${kpi.bg} rounded-xl ${kpi.iconColor}`}>
+                    <IconComponent />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Pipeline */}
-      <Card className="border-none shadow-sm bg-white">
+      <Card className="border-none shadow-sm bg-white animate-fade-in-up stagger-6">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold text-slate-800">Pipeline por Estado</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg font-semibold text-slate-800">Pipeline por Estado</CardTitle>
+            <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
+              {totalBusquedas} total
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           {[
-            { label: 'NUEVO', value: stats.buscadasActivas, color: 'bg-sky-500', bgLight: 'bg-sky-100' },
-            { label: 'CALIFICADO', value: stats.buscadasCalificadas, color: 'bg-violet-500', bgLight: 'bg-violet-100' },
-            { label: 'VISITA', value: stats.visitas, color: 'bg-amber-500', bgLight: 'bg-amber-100' },
-            { label: 'RESERVA', value: stats.reservas, color: 'bg-emerald-500', bgLight: 'bg-emerald-100' },
-            { label: 'CERRADO', value: stats.cerrados, color: 'bg-slate-500', bgLight: 'bg-slate-100' },
+            { label: 'NUEVO', value: stats.buscadasActivas, color: 'bg-sky-500', bgLight: 'bg-sky-100', textColor: 'text-sky-700' },
+            { label: 'CALIFICADO', value: stats.buscadasCalificadas, color: 'bg-violet-500', bgLight: 'bg-violet-100', textColor: 'text-violet-700' },
+            { label: 'VISITA', value: stats.visitas, color: 'bg-amber-500', bgLight: 'bg-amber-100', textColor: 'text-amber-700' },
+            { label: 'RESERVA', value: stats.reservas, color: 'bg-emerald-500', bgLight: 'bg-emerald-100', textColor: 'text-emerald-700' },
+            { label: 'CERRADO', value: stats.cerrados, color: 'bg-slate-500', bgLight: 'bg-slate-100', textColor: 'text-slate-700' },
           ].map((item) => {
-            const total = stats.buscadasActivas + stats.buscadasCalificadas + stats.visitas + stats.reservas + stats.cerrados || 1
+            const total = totalBusquedas || 1
             const percentage = Math.min((item.value / total) * 100, 100)
             return (
-              <div key={item.label}>
+              <div key={item.label} className="group">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-slate-600">{item.label}</span>
-                  <span className="text-sm font-bold text-slate-800">{item.value}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${item.color}`}></span>
+                    <span className="text-sm font-medium text-slate-600">{item.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${item.textColor} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                      {percentage > 0 ? `${Math.round(percentage)}%` : ''}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800 min-w-[2rem] text-right">{item.value}</span>
+                  </div>
                 </div>
-                <div className={`w-full ${item.bgLight} rounded-full h-2.5`}>
+                <div className={`w-full ${item.bgLight} rounded-full h-2.5 overflow-hidden`}>
                   <div
-                    className={`${item.color} h-2.5 rounded-full transition-all duration-500`}
+                    className={`${item.color} h-2.5 rounded-full transition-all duration-700 ease-out`}
                     style={{ width: `${percentage}%` }}
                   ></div>
                 </div>
               </div>
             )
           })}
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card className="border-none shadow-sm bg-white animate-fade-in-up stagger-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold text-slate-800">Acciones Rápidas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Nueva Búsqueda', href: '/busquedas', icon: '🔍', desc: 'Cargar requerimiento' },
+              { label: 'Búsqueda IA', href: '/parsear', icon: '🤖', desc: 'Analizar con IA' },
+              { label: 'Gestión Cliente', href: '/gestion', icon: '👤', desc: 'Seguimiento' },
+              { label: 'Carga Rápida', href: '/carga-rapida', icon: '⚡', desc: 'Agregar propiedad' },
+            ].map((action) => (
+              <button
+                key={action.label}
+                onClick={() => router.push(action.href)}
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-sky-200 transition-all hover:shadow-md group text-center"
+              >
+                <span className="text-2xl group-hover:scale-110 transition-transform">{action.icon}</span>
+                <span className="text-sm font-medium text-slate-700">{action.label}</span>
+                <span className="text-[11px] text-slate-400">{action.desc}</span>
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -179,26 +179,28 @@ const Sidebar = () => {
   }
 
   const links = [
-    { href: '/dashboard', label: 'Dashboard', icon: Icons.home, description: 'Vista general de métricas y KPIs' },
-    { href: '/gestion', label: 'Gestión Cliente', icon: Icons.gestion, description: 'Seguimiento completo del cliente' },
-    { href: '/clientes', label: 'Clientes', icon: Icons.clientes, description: 'Base de datos de clientes' },
-    { href: '/busquedas', label: 'Búsquedas', icon: Icons.busquedas, description: 'Requerimientos de clientes' },
-    { href: '/parsear', label: 'Búsqueda Inteligente', icon: Icons.parsear, description: 'Buscar propiedades con analisis inteligente' },
-    { href: '/propiedades', label: 'Propiedades', icon: Icons.propiedades, description: 'Inventario de propiedades' },
-    { href: '/carga-rapida', label: 'Carga Rápida', icon: Icons.carga, description: 'Agregar propiedades rápido' },
-    { href: '/tareas', label: 'Agenda / Tareas', icon: Icons.agenda, description: 'Visitas y recordatorios' },
-    { href: '/operaciones', label: 'Comisiones', icon: Icons.comisiones, description: 'Seguimiento de ventas' },
-    { href: '/importar', label: 'Importar', icon: Icons.importar, description: 'Importar desde Excel' },
-    { href: '/agentes', label: 'Agentes', icon: Icons.agentes, description: 'Equipo de trabajo' },
+    { href: '/dashboard', label: 'Dashboard', icon: Icons.home, description: 'Vista general de métricas y KPIs', group: 'principal' },
+    { href: '/gestion', label: 'Gestión Cliente', icon: Icons.gestion, description: 'Seguimiento completo del cliente', group: 'principal' },
+    { href: '/clientes', label: 'Clientes', icon: Icons.clientes, description: 'Base de datos de clientes', group: 'principal' },
+    { href: '/busquedas', label: 'Búsquedas', icon: Icons.busquedas, description: 'Requerimientos de clientes', group: 'principal' },
+    { href: '/parsear', label: 'Búsqueda Inteligente', icon: Icons.parsear, description: 'Buscar propiedades con analisis inteligente', group: 'herramientas' },
+    { href: '/propiedades', label: 'Propiedades', icon: Icons.propiedades, description: 'Inventario de propiedades', group: 'herramientas' },
+    { href: '/carga-rapida', label: 'Carga Rápida', icon: Icons.carga, description: 'Agregar propiedades rápido', group: 'herramientas' },
+    { href: '/tareas', label: 'Agenda / Tareas', icon: Icons.agenda, description: 'Visitas y recordatorios', group: 'herramientas' },
+    { href: '/operaciones', label: 'Comisiones', icon: Icons.comisiones, description: 'Seguimiento de ventas', group: 'herramientas' },
+    { href: '/importar', label: 'Importar', icon: Icons.importar, description: 'Importar desde Excel', group: 'herramientas' },
+    { href: '/agentes', label: 'Agentes', icon: Icons.agentes, description: 'Equipo de trabajo', group: 'herramientas' },
   ]
 
   const adminLinks = [
     { href: '/admin/tablero-busquedas', label: 'Tablero Búsq.', icon: Icons.busquedas, description: 'Seguimiento de agentes' },
+    { href: '/admin/comisiones', label: 'Comisiones', icon: Icons.comisiones, description: 'Control de porcentajes' },
     { href: '/admin/usuarios', label: 'Usuarios', icon: Icons.usuarios, description: 'Gestionar accesos' },
   ]
 
   const superadminLinks = [
     { href: '/admin/tablero-busquedas', label: 'Tablero Búsq.', icon: Icons.busquedas, description: 'Seguimiento de agentes' },
+    { href: '/admin/comisiones', label: 'Comisiones', icon: Icons.comisiones, description: 'Control de porcentajes' },
     { href: '/admin/inmobiliarias', label: 'Inmobiliarias', icon: Icons.inmobiliarias, description: 'Gestionar inmobiliarias' },
     { href: '/admin/usuarios', label: 'Usuarios', icon: Icons.usuarios, description: 'Gestionar accesos' },
   ]
@@ -216,7 +218,7 @@ const Sidebar = () => {
           </div>
           <div className=" whitespace-nowrap">
             <h1 className="text-lg font-bold text-slate-800">CRM</h1>
-            <p className="text-xs text-slate-500 -mt-0.5">Inmobiliario</p>
+            <p className="text-xs text-slate-500 -mt-0.5">{inmobiliariaNombre || 'Inmobiliario'}</p>
           </div>
         </div>
       </div>
@@ -257,42 +259,90 @@ const Sidebar = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
-        {links.map((link) => {
-          const isActive = pathname === link.href
-          const IconComponent = link.icon
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              title={link.description}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group/link relative',
-                isActive
-                  ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              )}
-            >
-              <span className={cn(
-                "flex-shrink-0 transition-transform duration-200",
-                !isActive && "group-hover/link:scale-110"
-              )}>
-                <IconComponent />
-              </span>
-              <div className="flex flex-col whitespace-nowrap ">
-                <span className="text-sm font-medium">
-                  {link.label}
-                </span>
+      <nav className="flex-1 px-2 py-3 overflow-y-auto">
+        {/* Principal section */}
+        <p className="px-3 text-[10px] text-slate-400 uppercase tracking-wider mb-2 font-semibold">
+          Principal
+        </p>
+        <div className="space-y-0.5 mb-4">
+          {links.filter(l => l.group === 'principal').map((link) => {
+            const isActive = pathname === link.href
+            const IconComponent = link.icon
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                title={link.description}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group/link relative',
+                  isActive
+                    ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                )}
+              >
                 <span className={cn(
-                  "text-[10px] leading-tight",
-                  isActive ? "text-sky-100" : "text-slate-400"
+                  "flex-shrink-0 transition-transform duration-200",
+                  !isActive && "group-hover/link:scale-110"
                 )}>
-                  {link.description}
+                  <IconComponent />
                 </span>
-              </div>
-            </Link>
-          )
-        })}
+                <div className="flex flex-col whitespace-nowrap ">
+                  <span className="text-sm font-medium">
+                    {link.label}
+                  </span>
+                  <span className={cn(
+                    "text-[10px] leading-tight",
+                    isActive ? "text-sky-100" : "text-slate-400"
+                  )}>
+                    {link.description}
+                  </span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+
+        {/* Herramientas section */}
+        <p className="px-3 text-[10px] text-slate-400 uppercase tracking-wider mb-2 font-semibold">
+          Herramientas
+        </p>
+        <div className="space-y-0.5">
+          {links.filter(l => l.group === 'herramientas').map((link) => {
+            const isActive = pathname === link.href
+            const IconComponent = link.icon
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                title={link.description}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group/link relative',
+                  isActive
+                    ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                )}
+              >
+                <span className={cn(
+                  "flex-shrink-0 transition-transform duration-200",
+                  !isActive && "group-hover/link:scale-110"
+                )}>
+                  <IconComponent />
+                </span>
+                <div className="flex flex-col whitespace-nowrap ">
+                  <span className="text-sm font-medium">
+                    {link.label}
+                  </span>
+                  <span className={cn(
+                    "text-[10px] leading-tight",
+                    isActive ? "text-sky-100" : "text-slate-400"
+                  )}>
+                    {link.description}
+                  </span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       </nav>
 
       {/* Admin Section */}

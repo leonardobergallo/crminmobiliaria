@@ -37,6 +37,7 @@ interface Operacion {
 interface CurrentUser {
   id: string
   nombre: string
+  email: string
   rol: string
   inmobiliariaId: string | null
 }
@@ -62,6 +63,8 @@ const INITIAL_FORM: FormState = {
   estado: 'PENDIENTE',
 }
 
+const DEMO_EMAILS = ['demo@inmobiliar.com', 'demo@misfinanzas.com']
+
 export default function OperacionesPage() {
   const router = useRouter()
   const [operaciones, setOperaciones] = useState<Operacion[]>([])
@@ -73,6 +76,9 @@ export default function OperacionesPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [clientes, setClientes] = useState<any[]>([])
   const [formData, setFormData] = useState<FormState>(INITIAL_FORM)
+  const [demoToast, setDemoToast] = useState(false)
+
+  const isDemo = currentUser?.email ? DEMO_EMAILS.includes(currentUser.email.toLowerCase()) : false
 
   const isCarliEsquivel = String(currentUser?.nombre || '')
     .toLowerCase()
@@ -199,6 +205,11 @@ export default function OperacionesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isDemo) {
+      setDemoToast(true)
+      setTimeout(() => setDemoToast(false), 3000)
+      return
+    }
     setSaving(true)
 
     try {
@@ -223,6 +234,11 @@ export default function OperacionesPage() {
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
+        if (err?.isDemo) {
+          setDemoToast(true)
+          setTimeout(() => setDemoToast(false), 3000)
+          return
+        }
         alert(err?.error || 'No se pudo guardar la operacion')
         return
       }
@@ -238,6 +254,11 @@ export default function OperacionesPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (isDemo) {
+      setDemoToast(true)
+      setTimeout(() => setDemoToast(false), 3000)
+      return
+    }
     const ok = confirm('Eliminar esta operacion? Esta accion no se puede deshacer.')
     if (!ok) return
 
@@ -272,6 +293,19 @@ export default function OperacionesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo toast */}
+      {demoToast && (
+        <div className="fixed top-4 right-4 z-50 animate-fade-in-up">
+          <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-amber-50 border border-amber-200 shadow-lg shadow-amber-100/50 text-amber-800">
+            <span className="text-lg">🔒</span>
+            <div>
+              <p className="font-semibold text-sm">Cuenta Demo</p>
+              <p className="text-xs text-amber-600">Esta acción no está disponible en la demo.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Comisiones</h1>
@@ -479,95 +513,111 @@ export default function OperacionesPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Operaciones</p>
-                <p className="text-2xl font-bold text-slate-900">{operaciones.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Total Comisiones</p>
-                <p className="text-2xl font-bold text-green-600">${totalComisionesBrutas.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Tu Ganancia</p>
-                <p className="text-2xl font-bold text-purple-600">${totalComisionesAgente.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Pendientes</p>
-                <p className="text-2xl font-bold text-amber-600">{operacionesPendientes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {isCarliEsquivel && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: 'Operaciones',
+            value: operaciones.length,
+            isCurrency: false,
+            color: 'text-blue-600',
+            bg: 'bg-blue-50',
+            iconBg: 'bg-blue-100',
+            iconColor: 'text-blue-600',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Total Comisiones',
+            value: totalComisionesBrutas,
+            isCurrency: true,
+            color: 'text-green-600',
+            bg: 'bg-green-50',
+            iconBg: 'bg-green-100',
+            iconColor: 'text-green-600',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Tu Ganancia',
+            value: totalComisionesAgente,
+            isCurrency: true,
+            color: 'text-purple-600',
+            bg: 'bg-purple-50',
+            iconBg: 'bg-purple-100',
+            iconColor: 'text-purple-600',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            ),
+          },
+          {
+            label: 'Pendientes',
+            value: operacionesPendientes,
+            isCurrency: false,
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+            iconBg: 'bg-amber-100',
+            iconColor: 'text-amber-600',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ),
+          },
+        ].map((kpi) => (
+          <Card key={kpi.label} className="border-none shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1" />
-                  </svg>
+                <div className={`w-12 h-12 ${kpi.iconBg} rounded-xl flex items-center justify-center ${kpi.iconColor}`}>
+                  {kpi.icon}
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">Ayudante (20%)</p>
-                  <p className="text-2xl font-bold text-amber-700">${totalAyudante.toLocaleString()}</p>
+                  <p className="text-sm text-slate-500">{kpi.label}</p>
+                  <p className={`text-2xl font-bold ${kpi.color}`}>
+                    {kpi.isCurrency ? `$${kpi.value.toLocaleString()}` : kpi.value}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
+        ))}
+      </div>
+
+      {isCarliEsquivel && (
+        <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-white">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-700">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-amber-700/70 font-medium">Ayudante (20%)</p>
+                <p className="text-2xl font-bold text-amber-700">${totalAyudante.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de Operaciones</CardTitle>
+      {/* History Table */}
+      <Card className="border-none shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">Historial de Operaciones</CardTitle>
+            <span className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full font-medium">
+              {operaciones.length} total
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -601,15 +651,18 @@ export default function OperacionesPage() {
                 </TableRow>
               ) : (
                 operaciones.map((op) => (
-                  <TableRow key={op.id}>
-                    <TableCell className="font-semibold">{op.nro || '-'}</TableCell>
+                  <TableRow key={op.id} className="hover:bg-slate-50/50 transition-colors">
+                    <TableCell className="font-mono text-slate-500">{op.nro || '-'}</TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{op.descripcion}</div>
-                        {op.direccion && <div className="text-sm text-slate-500">{op.direccion}</div>}
+                        <div className="font-medium text-slate-800">{op.descripcion}</div>
+                        {op.direccion && <div className="text-xs text-slate-400">{op.direccion}</div>}
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {new Date(op.fechaOperacion).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>{op.cliente?.nombreCompleto || '-'}</TableCell>
+                    <TableCell className="text-slate-600">{op.cliente?.nombreCompleto || '-'}</TableCell>
                     <TableCell>
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -619,8 +672,8 @@ export default function OperacionesPage() {
                         {op.tipoPunta === 'DOS' ? '2 Puntas' : '1 Punta'}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">${op.precioVenta?.toLocaleString() || '-'}</TableCell>
-                    <TableCell className="text-right text-blue-600">${op.comisionBruta?.toLocaleString() || '0'}</TableCell>
+                    <TableCell className="text-right font-medium text-slate-700">${op.precioVenta?.toLocaleString() || '-'}</TableCell>
+                    <TableCell className="text-right font-semibold text-blue-600">${op.comisionBruta?.toLocaleString() || '0'}</TableCell>
                     <TableCell className="text-right font-semibold text-green-600">
                       ${op.comisionAgente?.toLocaleString() || '0'}
                       {isCarliEsquivel && (
@@ -642,18 +695,21 @@ export default function OperacionesPage() {
                         {op.estado}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button size="sm" variant="outline" onClick={() => startEdit(op)}>
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDelete(op.id)}
-                        disabled={deletingId === op.id}
-                      >
-                        {deletingId === op.id ? 'Eliminando...' : 'Eliminar'}
-                      </Button>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => startEdit(op)} className="h-7 px-2.5 text-xs">
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDelete(op.id)}
+                          disabled={deletingId === op.id}
+                          className="h-7 px-2.5 text-xs"
+                        >
+                          {deletingId === op.id ? '...' : 'Eliminar'}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

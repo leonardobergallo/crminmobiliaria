@@ -69,13 +69,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'descripcion es requerida' }, { status: 400 })
     }
 
-    const lastOp = await prisma.operacion.findFirst({
-      where: { inmobiliariaId: currentUser.inmobiliariaId },
-      orderBy: { nro: 'desc' },
-      select: { nro: true },
-    })
-    const nextNro = (lastOp?.nro || 0) + 1
-
     const venta = Number(precioVenta || 0)
     const tipoPuntaCalc = tipoPunta === 'DOS' ? 'DOS' : 'UNA'
     const porcentajeComisionCalc = tipoPuntaCalc === 'DOS' ? 6 : 3
@@ -88,31 +81,52 @@ export async function POST(request: NextRequest) {
       : porcentajeAgenteBruto
     const comisionAgenteCalc = comisionBrutaCalc * (porcentajeAgenteCalc / 100)
 
-    const operacion = await prisma.operacion.create({
-      data: {
-        nro: nextNro,
-        descripcion,
-        direccion: direccion || null,
-        precioVenta: venta || null,
-        tipoPunta: tipoPuntaCalc,
-        porcentajeComision: porcentajeComisionCalc,
-        comisionBruta: comisionBrutaCalc,
-        porcentajeAgente: porcentajeAgenteCalc,
-        comisionAgente: comisionAgenteCalc,
-        clienteId: clienteId || null,
-        usuarioId: currentUser.id,
-        inmobiliariaId: currentUser.inmobiliariaId,
-        observaciones: observaciones || null,
-        estado: 'PENDIENTE',
-        fechaOperacion: new Date(),
-      },
-      include: {
-        cliente: true,
-        usuario: { select: { nombre: true } },
-      },
-    })
+    // Retry loop to handle concurrent inserts (unique constraint on nro)
+    const MAX_RETRIES = 5
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const lastOp = await prisma.operacion.findFirst({
+          where: { inmobiliariaId: currentUser.inmobiliariaId },
+          orderBy: { nro: 'desc' },
+          select: { nro: true },
+        })
+        const nextNro = (lastOp?.nro || 0) + 1
 
-    return NextResponse.json(operacion, { status: 201 })
+        const operacion = await prisma.operacion.create({
+          data: {
+            nro: nextNro,
+            descripcion,
+            direccion: direccion || null,
+            precioVenta: venta || null,
+            tipoPunta: tipoPuntaCalc,
+            porcentajeComision: porcentajeComisionCalc,
+            comisionBruta: comisionBrutaCalc,
+            porcentajeAgente: porcentajeAgenteCalc,
+            comisionAgente: comisionAgenteCalc,
+            clienteId: clienteId || null,
+            usuarioId: currentUser.id,
+            inmobiliariaId: currentUser.inmobiliariaId,
+            observaciones: observaciones || null,
+            estado: 'PENDIENTE',
+            fechaOperacion: new Date(),
+          },
+          include: {
+            cliente: true,
+            usuario: { select: { nombre: true } },
+          },
+        })
+
+        return NextResponse.json(operacion, { status: 201 })
+      } catch (retryError: any) {
+        // P2002 = Unique constraint violation on nro — retry with fresh nro
+        if (retryError?.code === 'P2002' && attempt < MAX_RETRIES - 1) {
+          continue
+        }
+        throw retryError
+      }
+    }
+
+    return NextResponse.json({ error: 'No se pudo generar nro unico' }, { status: 500 })
   } catch (error) {
     console.error('Error POST /api/operaciones:', error)
     return NextResponse.json({ error: 'Error al crear operacion' }, { status: 500 })

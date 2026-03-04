@@ -79,3 +79,28 @@ export function hasPermission(user: { rol: string } | null, requiredRoles: strin
   if (!user) return false;
   return requiredRoles.includes(user.rol);
 }
+
+// ── Demo user protection ──────────────────────────────────────────────
+const DEMO_EMAILS = ['demo@inmobiliar.com', 'demo@misfinanzas.com'];
+
+/** Returns true when the authenticated user is a demo account */
+export function isDemoUser(user: { email?: string | null } | null): boolean {
+  if (!user?.email) return false;
+  return DEMO_EMAILS.includes(user.email.toLowerCase());
+}
+
+import { NextResponse } from 'next/server';
+
+/**
+ * Returns a 403 NextResponse if the user is a demo account.
+ * Usage:  const blocked = demoGuard(user); if (blocked) return blocked;
+ */
+export function demoGuard(user: { email?: string | null } | null): NextResponse | null {
+  if (isDemoUser(user)) {
+    return NextResponse.json(
+      { error: 'Cuenta demo: esta acción no está disponible. Creá tu cuenta para usar todas las funciones.' },
+      { status: 403 }
+    );
+  }
+  return null;
+}

@@ -707,28 +707,31 @@ function GestionClienteContent() {
     }
   }
 
-  if (loading) return <div className="text-center py-8">Cargando...</div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="flex flex-col items-center gap-4 text-slate-500">
+        <svg className="animate-spin h-8 w-8 text-sky-500" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span className="text-sm font-medium">Cargando gestión...</span>
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-slate-900">Gestion de Cliente</h1>
-      <Card className="border-slate-200 bg-slate-50">
-        <CardContent className="pt-4">
-          <div className="text-sm text-slate-700">
-            Flujo sugerido: `1)` elegir cliente, `2)` revisar/crear busqueda, `3)` enviar sugerencias o links, `4)` registrar comunicaciones y respuestas.
-          </div>
-        </CardContent>
-      </Card>
+      <div className="animate-fade-in-up">
+        <h1 className="text-2xl font-bold text-slate-900">Gestión de Cliente</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Seguimiento completo: búsquedas, envíos y comunicaciones</p>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar: Lista de Clientes */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 animate-fade-in-up stagger-1">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg">Clientes</CardTitle>
-              <p className="text-sm text-slate-600">
-                Selecciona un cliente para abrir su historial completo.
-              </p>
               <div className="flex gap-2">
                 {clientesAEliminar.size > 0 && (
                   <Button 
@@ -751,12 +754,17 @@ function GestionClienteContent() {
               </div>
             </CardHeader>
             <CardContent className="p-0 max-h-[600px] overflow-y-auto">
-              {clientes.map((cliente) => (
+              {clientes.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-slate-400 text-sm">No hay clientes</p>
+                </div>
+              ) : (
+              clientes.map((cliente) => (
                 <button
                   key={cliente.id}
                   onClick={() => setClienteSeleccionado(cliente)}
-                  className={`w-full px-4 py-3 text-left border-b hover:bg-slate-50 transition-colors ${
-                    clienteSeleccionado?.id === cliente.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  className={`w-full px-4 py-3 text-left border-b hover:bg-slate-50 transition-all ${
+                    clienteSeleccionado?.id === cliente.id ? 'bg-sky-50 border-l-4 border-l-sky-500' : 'border-l-4 border-l-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -775,26 +783,48 @@ function GestionClienteContent() {
                       }
                     }}
                     className="w-4 h-4"
+                    onClick={(e) => e.stopPropagation()}
                   />
-                  <div className="flex-1">
-                    <div className="font-medium">{cliente.nombreCompleto}</div>
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    {cliente.nombreCompleto?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{cliente.nombreCompleto}</div>
                     {cliente.telefono && (
-                      <div className="text-sm text-slate-500">{cliente.telefono}</div>
+                      <div className="text-xs text-slate-400">{cliente.telefono}</div>
                     )}
                   </div>
+                  {cliente.busquedas && cliente.busquedas.length > 0 && (
+                    <span className="text-[10px] bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full font-medium">
+                      {cliente.busquedas.length}
+                    </span>
+                  )}
                 </div>
                 </button>
-              ))}
+              )))}
             </CardContent>
           </Card>
         </div>
 
         {/* Main: Detalle del Cliente */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 animate-fade-in-up stagger-2">
           {!clienteSeleccionado ? (
             <Card>
-              <CardContent className="py-12 text-center text-slate-500">
-                Selecciona un cliente para ver su historial
+              <CardContent className="py-16 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-slate-600 font-medium">Seleccioná un cliente</p>
+                    <p className="text-sm text-slate-400 mt-1">Elegí de la lista a la izquierda para ver su historial completo</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ) : (
@@ -859,35 +889,34 @@ function GestionClienteContent() {
               </Card>
 
               {/* Tabs */}
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant={tab === 'busquedas' ? 'default' : 'outline'}
-                  onClick={() => setTab('busquedas')}
-                  size="sm"
-                >
-                  Busquedas ({busquedas.length})
-                </Button>
-                <Button
-                  variant={tab === 'sugerencias' ? 'default' : 'outline'}
-                  onClick={() => setTab('sugerencias')}
-                  size="sm"
-                >
-                  Sugerencias ({((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0))})
-                </Button>
-                <Button
-                  variant={tab === 'envios' ? 'default' : 'outline'}
-                  onClick={() => setTab('envios')}
-                  size="sm"
-                >
-                  Historial de Propiedades ({envios.length})
-                </Button>
-                <Button
-                  variant={tab === 'comunicaciones' ? 'default' : 'outline'}
-                  onClick={() => setTab('comunicaciones')}
-                  size="sm"
-                >
-                  Notas / Coms ({comunicaciones.length})
-                </Button>
+              <div className="border-b border-slate-200 bg-white rounded-t-xl px-1">
+                <div className="flex gap-0 -mb-px">
+                  {[
+                    { key: 'busquedas' as const, label: 'Búsquedas', count: busquedas.length },
+                    { key: 'sugerencias' as const, label: 'Sugerencias', count: ((sugerencias?.sugerencias?.length || 0) + (sugerencias?.adicionales?.length || 0)) },
+                    { key: 'envios' as const, label: 'Historial Props', count: envios.length },
+                    { key: 'comunicaciones' as const, label: 'Notas / Coms', count: comunicaciones.length },
+                  ].map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTab(t.key)}
+                      className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                        tab === t.key
+                          ? 'border-sky-500 text-sky-600'
+                          : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      {t.label}
+                      {t.count > 0 && (
+                        <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full font-medium ${
+                          tab === t.key ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {t.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {propSeleccionadasFromUrl && (
@@ -1085,9 +1114,11 @@ function GestionClienteContent() {
 
                     {/* Lista de búsquedas */}
                     {busquedas.length === 0 ? (
-                      <p className="text-slate-500 text-center py-4">
-                        No hay búsquedas registradas. Crea una nueva búsqueda para comenzar.
-                      </p>
+                      <div className="flex flex-col items-center gap-3 py-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <p className="text-slate-500 font-medium">Sin búsquedas registradas</p>
+                        <p className="text-sm text-slate-400">Creá una nueva búsqueda para comenzar el seguimiento</p>
+                      </div>
                     ) : (
                       <div className="space-y-4">
                         {busquedas.map((busqueda) => {
@@ -1315,9 +1346,11 @@ function GestionClienteContent() {
                     {/* Lista de sugerencias */}
                     <div className="space-y-3">
                       {(sugerencias?.sugerencias?.length || 0) === 0 && (sugerencias?.adicionales?.length || 0) === 0 ? (
-                        <p className="text-slate-500 text-center py-4">
-                          No hay propiedades nuevas para sugerir
-                        </p>
+                        <div className="flex flex-col items-center gap-3 py-8">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                          <p className="text-slate-500 font-medium">Sin sugerencias nuevas</p>
+                          <p className="text-sm text-slate-400">Las propiedades que coincidan aparecerán acá</p>
+                        </div>
                       ) : (
                         <>
                           {[...(sugerencias?.sugerencias || []), ...(sugerencias?.adicionales || [])].map((prop) => (
@@ -1400,9 +1433,11 @@ function GestionClienteContent() {
                   </CardHeader>
                   <CardContent>
                     {envios.length === 0 ? (
-                      <p className="text-slate-500 text-center py-4">
-                        No hay envíos registrados
-                      </p>
+                      <div className="flex flex-col items-center gap-3 py-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <p className="text-slate-500 font-medium">Sin envíos registrados</p>
+                        <p className="text-sm text-slate-400">Enviá propiedades al cliente desde la pestaña Sugerencias</p>
+                      </div>
                     ) : (
                       <div className="space-y-5">
                         {(() => {
@@ -1661,9 +1696,11 @@ function GestionClienteContent() {
 
                     {/* Lista de comunicaciones */}
                     {comunicaciones.length === 0 ? (
-                      <p className="text-slate-500 text-center py-4">
-                        No hay comunicaciones registradas
-                      </p>
+                      <div className="flex flex-col items-center gap-3 py-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                        <p className="text-slate-500 font-medium">Sin comunicaciones</p>
+                        <p className="text-sm text-slate-400">Registrá llamadas, WhatsApp y notas de seguimiento</p>
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {comunicaciones.map((com) => (

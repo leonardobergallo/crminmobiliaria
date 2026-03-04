@@ -174,7 +174,10 @@ const normalizeInmoName = (value: string) =>
     .toLowerCase()
 
 const buildSitioOficialSearchUrl = (inmo: string) =>
-  `https://www.google.com/search?q=${encodeURIComponent(`"${inmo}" inmobiliaria santa fe sitio oficial`)}`
+  `https://www.google.com/search?q=${encodeURIComponent(`${inmo} inmobiliaria santa fe sitio web`)}`
+
+const buildMercadoUnicoSearchUrl = (inmo: string) =>
+  `https://www.google.com/search?q=${encodeURIComponent(`${inmo} propiedades site:mercado-unico.com`)}`
 
 const getSitioOficialInmo = (inmo: string) => {
   const key = normalizeInmoName(inmo)
@@ -184,6 +187,17 @@ const getSitioOficialInmo = (inmo: string) => {
 const hasSitioOficialInmo = (inmo: string) => {
   const key = normalizeInmoName(inmo)
   return Boolean(MERCADO_UNICO_SITIOS_OFICIALES[key])
+}
+
+/** Devuelve la URL principal para la inmobiliaria: sitio oficial si existe, sino Mercado Único */
+const getInmoPrimaryUrl = (inmo: string) => {
+  const key = normalizeInmoName(inmo)
+  if (MERCADO_UNICO_SITIOS_OFICIALES[key]) return MERCADO_UNICO_SITIOS_OFICIALES[key]
+  return buildMercadoUnicoSearchUrl(inmo)
+}
+
+const getInmoPrimaryLabel = (inmo: string) => {
+  return hasSitioOficialInmo(inmo) ? 'Abrir sitio oficial' : 'Buscar en Mercado Único'
 }
 
 function toTimestamp(value?: string | null) {
@@ -393,14 +407,19 @@ function ParsearBusquedaContent() {
   const portalSearchLinks = useMemo(() => getPortalSearchLinks(resultado?.busquedaParseada), [resultado])
   const analisisExtraLinks = useMemo(() => getAnalisisExtraLinks(resultado?.busquedaParseada), [resultado])
   const inmoMercadoUnicoUrl = useMemo(
-    () =>
-      inmoMercadoUnico
-        ? `https://www.google.com/search?q=${encodeURIComponent(`site:mercado-unico.com \"${inmoMercadoUnico}\" santa fe ver propiedades`)}`
-        : null,
+    () => inmoMercadoUnico ? buildMercadoUnicoSearchUrl(inmoMercadoUnico) : null,
     [inmoMercadoUnico]
   )
   const inmoSitioOficialUrl = useMemo(
     () => (inmoMercadoUnico ? getSitioOficialInmo(inmoMercadoUnico) : null),
+    [inmoMercadoUnico]
+  )
+  const inmoPrimaryUrl = useMemo(
+    () => inmoMercadoUnico ? getInmoPrimaryUrl(inmoMercadoUnico) : null,
+    [inmoMercadoUnico]
+  )
+  const inmoPrimaryLabel = useMemo(
+    () => inmoMercadoUnico ? getInmoPrimaryLabel(inmoMercadoUnico) : '',
     [inmoMercadoUnico]
   )
   const scrapedItemsConIndice = useMemo(() => {
@@ -896,42 +915,36 @@ function ParsearBusquedaContent() {
                   </div>
                   <div className="border-t border-slate-200 pt-3">
                     <div className="text-xs font-semibold text-slate-700 mb-2">Paso 3 · Inmobiliarias Santa Fe</div>
-                    <div className="text-xs text-slate-500 mb-2">Elegi una inmobiliaria para abrir directorio, busqueda o sitio oficial.</div>
+                    <div className="text-xs text-slate-500 mb-2">Elegí una inmobiliaria: si tiene sitio oficial va directo, sino busca en Mercado Único.</div>
                   </div>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                     <select
                       value={inmoMercadoUnico}
                       onChange={(e) => setInmoMercadoUnico(e.target.value)}
-                      className="px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
+                      className="md:col-span-2 px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
                     >
-                      <option value="">Elegir inmobiliaria (Mercado Unico)</option>
+                      <option value="">Elegir inmobiliaria...</option>
                       {MERCADO_UNICO_INMOBILIARIAS.map((inmo) => (
                         <option key={inmo} value={inmo}>
                           {inmo}
-                          {hasSitioOficialInmo(inmo) ? ' (sitio oficial)' : ''}
+                          {hasSitioOficialInmo(inmo) ? ' ✓ sitio oficial' : ''}
                         </option>
                       ))}
                     </select>
                     <a
-                      href="https://www.mercado-unico.com/"
+                      href={inmoPrimaryUrl || '#'}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      Abrir directorio MU
-                    </a>
-                    <a
-                      href={inmoMercadoUnicoUrl || '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-disabled={!inmoMercadoUnicoUrl}
+                      aria-disabled={!inmoPrimaryUrl}
                       className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
-                        inmoMercadoUnicoUrl
-                          ? 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
-                          : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                        !inmoPrimaryUrl
+                          ? 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                          : hasSitioOficialInmo(inmoMercadoUnico)
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
                       }`}
                     >
-                      Buscar en directorio
+                      {inmoPrimaryLabel || 'Elegí inmobiliaria'}
                     </a>
                     <a
                       href={inmoSitioOficialUrl || '#'}
@@ -940,11 +953,19 @@ function ParsearBusquedaContent() {
                       aria-disabled={!inmoSitioOficialUrl}
                       className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
                         inmoSitioOficialUrl
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          ? 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
                           : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
                       }`}
                     >
-                      Sitio oficial
+                      Buscar sitio web
+                    </a>
+                    <a
+                      href="https://www.mercado-unico.com/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      Directorio MU
                     </a>
                   </div>
                 </div>
