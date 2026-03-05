@@ -55,7 +55,7 @@ export default function Image() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ fontSize: 22, opacity: 0.88 }}>Inmobiliar en Equipo</div>
-              <div style={{ fontSize: 16, opacity: 0.78 }}>CRM Inmobiliario</div>
+              <div style={{ fontSize: 16, opacity: 0.78 }}>Inmobiliaria en Equipo</div>
             </div>
           </div>
 

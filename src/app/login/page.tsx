@@ -60,8 +60,8 @@ export default function LoginPage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-sky-600">CRM</h1>
-              <p className="text-xs text-slate-500 -mt-1">Inmobiliario</p>
+              <h1 className="text-2xl font-bold text-sky-600">Inmobiliaria</h1>
+              <p className="text-xs text-slate-500 -mt-1">en Equipo</p>
             </div>
           </div>
 

@@ -217,8 +217,8 @@ const Sidebar = () => {
             </svg>
           </div>
           <div className=" whitespace-nowrap">
-            <h1 className="text-lg font-bold text-slate-800">CRM</h1>
-            <p className="text-xs text-slate-500 -mt-0.5">{inmobiliariaNombre || 'Inmobiliario'}</p>
+            <h1 className="text-lg font-bold text-slate-800">Inmobiliaria</h1>
+            <p className="text-xs text-slate-500 -mt-0.5">{inmobiliariaNombre || 'en Equipo'}</p>
           </div>
         </div>
       </div>

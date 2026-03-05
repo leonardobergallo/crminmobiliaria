@@ -50,7 +50,7 @@ const DEMO_CAPTURE_SLIDES: DemoCaptureSlide[] = [
     titulo: 'Dashboard comercial',
     descripcion: 'KPIs en tiempo real, pipeline de ventas y resumen de actividad del equipo.',
     image: '/demo/captura-1-dashboard.png',
-    alt: 'Vista dashboard del CRM inmobiliario',
+    alt: 'Vista dashboard de Inmobiliaria en Equipo',
     badge: 'Panel principal',
   },
   {
@@ -58,7 +58,7 @@ const DEMO_CAPTURE_SLIDES: DemoCaptureSlide[] = [
     titulo: 'Gestion de cliente 360',
     descripcion: 'Seguimiento completo: busquedas activas, envios, notas y respuestas en un solo lugar.',
     image: '/demo/captura-2-gestion-cliente.png',
-    alt: 'Vista gestion de cliente en CRM inmobiliario',
+    alt: 'Vista gestion de cliente en Inmobiliaria en Equipo',
     badge: 'Cliente',
   },
   {
@@ -219,7 +219,7 @@ export default function LandingPage() {
         <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative transition-all duration-700 ${hero.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center">
             <div className="inline-flex items-center gap-2 rounded-full bg-blue-100/70 backdrop-blur px-4 py-1.5 text-sm font-semibold text-blue-700 mb-6">
-              <Zap className="w-4 h-4" /> CRM Inmobiliario Profesional
+              <Zap className="w-4 h-4" /> Inmobiliaria en Equipo
             </div>
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 tracking-tight mb-6 leading-[1.08]">
               Gestiona tu inmobiliaria
@@ -668,7 +668,7 @@ export default function LandingPage() {
                 <span className="text-lg font-bold">Inmobiliar en Equipo</span>
               </div>
               <p className="text-sm leading-relaxed">
-                CRM inmobiliario para equipos comerciales que buscan velocidad, organizacion y seguimiento real.
+                Inmobiliaria en Equipo: para equipos comerciales que buscan velocidad, organizacion y seguimiento real.
               </p>
             </div>
 

@@ -332,7 +332,7 @@ export default function TareasPage() {
                  (tarea.descripcion ? `📝 *Notas:* ${tarea.descripcion}\n` : '') +
                  (tarea.propiedad ? `🏠 *Propiedad:* ${tarea.propiedad.titulo || tarea.propiedad.direccion}\n` : '') +
                  (tarea.cliente ? `👤 *Cliente:* ${tarea.cliente.nombreCompleto}\n` : '') +
-                 `\n_Enviado desde CRM Inmobiliario_`
+                 `\n_Enviado desde Inmobiliaria en Equipo_`
     
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }

@@ -1079,21 +1079,22 @@ export default function BusquedasPage() {
   const inmoPrimaryUrl = inmoMercadoUnico ? getInmoPrimaryUrl(inmoMercadoUnico) : null
   const inmoPrimaryLabel = inmoMercadoUnico ? getInmoPrimaryLabel(inmoMercadoUnico) : ''
 
-  const tableroAgentes = currentUser?.rol === 'admin'
-    ? Object.values(
-        filtrados.reduce((acc, b) => {
-          const agenteNombre = getAgenteNombre(b)
-          if (!acc[agenteNombre]) {
-            acc[agenteNombre] = { agente: agenteNombre, total: 0, activas: 0, visitas: 0, cerradas: 0 }
-          }
-          acc[agenteNombre].total++
-          if (b.estado !== 'CERRADO' && b.estado !== 'PERDIDO') acc[agenteNombre].activas++
-          if (b.estado === 'VISITA') acc[agenteNombre].visitas++
-          if (b.estado === 'CERRADO') acc[agenteNombre].cerradas++
-          return acc
-        }, {} as Record<string, { agente: string; total: number; activas: number; visitas: number; cerradas: number }>)
-      )
-    : []
+  // KPI computations
+  const kpiTotal = filtrados.length
+  const kpiActivas = filtrados.filter(b => !['CERRADO', 'PERDIDO'].includes(b.estado)).length
+  const kpiVisita = filtrados.filter(b => b.estado === 'VISITA').length
+  const kpiCerradas = filtrados.filter(b => b.estado === 'CERRADO').length
+  const kpiPerdidas = filtrados.filter(b => b.estado === 'PERDIDO').length
+  const kpiNuevas = filtrados.filter(b => b.estado === 'NUEVO').length
+
+  const kpis = [
+    { label: 'Total', value: kpiTotal, icon: '📋', color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    { label: 'Activas', value: kpiActivas, icon: '🟢', color: 'from-emerald-500 to-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+    { label: 'Nuevas', value: kpiNuevas, icon: '✨', color: 'from-violet-500 to-violet-600', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    { label: 'En visita', value: kpiVisita, icon: '👁️', color: 'from-amber-500 to-amber-600', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+    { label: 'Cerradas', value: kpiCerradas, icon: '🏆', color: 'from-sky-500 to-sky-600', bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200' },
+    { label: 'Perdidas', value: kpiPerdidas, icon: '❌', color: 'from-red-400 to-red-500', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
+  ]
 
   const sugeridasPrioridad = filtrados
     .map((busqueda) => ({ busqueda, prioridad: getPrioridadBusqueda(busqueda) }))
@@ -1103,74 +1104,74 @@ export default function BusquedasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center animate-fade-in-up">
+      {/* Header */}
+      <div className="flex justify-between items-start animate-fade-in-up">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Búsquedas</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {filtrados.length} búsqueda{filtrados.length !== 1 ? 's' : ''} encontrada{filtrados.length !== 1 ? 's' : ''}
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-lg">🔍</span>
+            Tablero de Búsquedas
+          </h1>
+          <p className="text-sm text-slate-500 mt-1 ml-11">
+            {filtrados.length} búsqueda{filtrados.length !== 1 ? 's' : ''} · Seguimiento y gestión de requerimientos
           </p>
         </div>
-        <Button
-          onClick={() => {
-            if (mostrarForm) resetBusquedaForm()
-            setMostrarForm(!mostrarForm)
-          }}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          + Nueva Busqueda
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/gestion')}
+            className="border-slate-300 hover:bg-slate-50"
+          >
+            Ir a Gestión
+          </Button>
+          <Button
+            onClick={() => {
+              if (mostrarForm) resetBusquedaForm()
+              setMostrarForm(!mostrarForm)
+            }}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-200"
+          >
+            + Nueva Búsqueda
+          </Button>
+        </div>
       </div>
-      <Card className="border-slate-200 bg-white/80 backdrop-blur-sm animate-fade-in-up stagger-1">
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 animate-fade-in-up stagger-1">
+        {kpis.map((kpi, i) => (
+          <div
+            key={kpi.label}
+            className={`relative overflow-hidden rounded-xl border ${kpi.border} ${kpi.bg} p-4 transition-all hover:shadow-md hover:-translate-y-0.5 cursor-default`}
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-lg">{kpi.icon}</span>
+              <span className={`text-2xl font-bold ${kpi.text}`}>{kpi.value}</span>
+            </div>
+            <p className={`text-xs font-medium ${kpi.text} mt-1 opacity-80`}>{kpi.label}</p>
+            <div className={`absolute -bottom-2 -right-2 w-16 h-16 rounded-full bg-gradient-to-br ${kpi.color} opacity-10`} />
+          </div>
+        ))}
+      </div>
+
+      {/* Guide steps */}
+      <Card className="border-slate-200 bg-white/80 backdrop-blur-sm animate-fade-in-up stagger-2">
         <CardContent className="pt-4 pb-3">
-          <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">1</span>
-            <span>Crear búsqueda</span>
-            <span className="text-slate-300">→</span>
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">2</span>
-            <span>Revisar detalle</span>
-            <span className="text-slate-300">→</span>
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">3</span>
-            <span>Editar si hace falta</span>
-            <span className="text-slate-300">→</span>
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-600 text-xs font-bold">4</span>
-            <span>Eliminar si ya no corresponde</span>
+          <div className="flex items-center gap-3 text-sm text-slate-600 flex-wrap">
+            {[
+              { step: 1, text: 'Crear búsqueda' },
+              { step: 2, text: 'Revisar detalle' },
+              { step: 3, text: 'Editar si hace falta' },
+              { step: 4, text: 'Eliminar si ya no corresponde' },
+            ].map((item, i) => (
+              <span key={item.step} className="flex items-center gap-2">
+                {i > 0 && <span className="text-slate-300">→</span>}
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-sky-100 to-blue-100 text-sky-700 text-xs font-bold shadow-sm">{item.step}</span>
+                <span>{item.text}</span>
+              </span>
+            ))}
           </div>
         </CardContent>
       </Card>
-
-      {currentUser?.rol === 'admin' && (
-        <Card className="border-sky-200 bg-sky-50">
-          <CardHeader>
-            <CardTitle>Tablero de Agentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-sky-200 text-slate-700">
-                    <th className="text-left py-2 pr-3">Agente</th>
-                    <th className="text-left py-2 pr-3">Total</th>
-                    <th className="text-left py-2 pr-3">Activas</th>
-                    <th className="text-left py-2 pr-3">En visita</th>
-                    <th className="text-left py-2 pr-3">Cerradas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableroAgentes.map((row) => (
-                    <tr key={row.agente} className="border-b border-sky-100">
-                      <td className="py-2 pr-3 font-medium">{row.agente}</td>
-                      <td className="py-2 pr-3">{row.total}</td>
-                      <td className="py-2 pr-3">{row.activas}</td>
-                      <td className="py-2 pr-3">{row.visitas}</td>
-                      <td className="py-2 pr-3">{row.cerradas}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {mostrarForm && (
         <Card>
@@ -1494,160 +1495,248 @@ export default function BusquedasPage() {
         </Card>
       )}
 
-      {/* Filtros */}
-      <Card className="border-slate-200 bg-white animate-fade-in-up stagger-2">
-        <CardContent className="pt-4 pb-3">
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex-1 min-w-[200px] max-w-md">
+      {/* Filtros de Seguimiento */}
+      <Card className="border-slate-200 bg-white animate-fade-in-up stagger-3">
+        <CardContent className="pt-5 pb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-sm">⚙️</span>
+            <h3 className="text-sm font-semibold text-slate-700">Filtros de Seguimiento</h3>
+            {(filtro || filtroEstado || filtroAgente || filtroPrioridad !== 'TODAS') && (
+              <button
+                onClick={() => { setFiltro(''); setFiltroEstado(''); setFiltroAgente(''); setFiltroPrioridad('TODAS') }}
+                className="ml-auto text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            {currentUser?.rol === 'admin' && (
+              <div>
+                <label className="block text-xs text-slate-500 mb-1 font-medium">Agente</label>
+                <select
+                  value={filtroAgente}
+                  onChange={(e) => setFiltroAgente(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors"
+                >
+                  <option value="">Todos los agentes</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>{u.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-slate-500 mb-1 font-medium">Estado</label>
+              <select
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors"
+              >
+                <option value="">Todos los estados</option>
+                <option value="NUEVO">Nuevo</option>
+                <option value="CALIFICADO">Calificado</option>
+                <option value="VISITA">Visita</option>
+                <option value="RESERVA">Reserva</option>
+                <option value="CERRADO">Cerrado</option>
+                <option value="PERDIDO">Perdido</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1 font-medium">Prioridad</label>
+              <select
+                value={filtroPrioridad}
+                onChange={(e) => setFiltroPrioridad(e.target.value as 'TODAS' | PrioridadNivel)}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-white hover:border-slate-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-colors"
+              >
+                <option value="TODAS">Todas las prioridades</option>
+                <option value="ALTA">🔴 Alta</option>
+                <option value="MEDIA">🟡 Media</option>
+                <option value="BAJA">⚪ Baja</option>
+              </select>
+            </div>
+            <div className={currentUser?.rol === 'admin' ? '' : 'lg:col-span-2'}>
+              <label className="block text-xs text-slate-500 mb-1 font-medium">Buscar</label>
               <Input
                 type="text"
-                placeholder="🔍 Buscar por cliente..."
+                placeholder="Buscar cliente / tipo / ubicación..."
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value)}
+                className="py-2.5 border-slate-200 rounded-lg hover:border-slate-300 focus:border-blue-400"
               />
             </div>
-            <select
-              value={filtroPrioridad}
-              onChange={(e) => setFiltroPrioridad(e.target.value as 'TODAS' | PrioridadNivel)}
-              className="px-3 py-2 border border-slate-300 rounded-md text-sm"
-            >
-              <option value="TODAS">Todas las prioridades</option>
-              <option value="ALTA">Solo ALTA</option>
-              <option value="MEDIA">Solo MEDIA</option>
-              <option value="BAJA">Solo BAJA</option>
-            </select>
-            <label className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-700 bg-white cursor-pointer hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={ordenarPorPrioridad}
-                onChange={(e) => setOrdenarPorPrioridad(e.target.checked)}
-                className="rounded"
-              />
-              Ordenar por prioridad
-            </label>
-            <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-md text-sm"
-            >
-              <option value="">Todos los estados</option>
-              <option value="NUEVO">Nuevo</option>
-              <option value="CALIFICADO">Calificado</option>
-              <option value="VISITA">Visita</option>
-              <option value="RESERVA">Reserva</option>
-              <option value="CERRADO">Cerrado</option>
-            </select>
-            {currentUser?.rol === 'admin' && (
-              <select
-                value={filtroAgente}
-                onChange={(e) => setFiltroAgente(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-md text-sm"
-              >
-                <option value="">Todos los agentes</option>
-                {usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+            <div className="flex items-end">
+              <label className="inline-flex items-center gap-2 px-4 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-700 bg-white cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors w-full justify-center">
+                <input
+                  type="checkbox"
+                  checked={ordenarPorPrioridad}
+                  onChange={(e) => setOrdenarPorPrioridad(e.target.checked)}
+                  className="rounded text-blue-600"
+                />
+                <span className="text-xs font-medium">Ordenar por prioridad</span>
+              </label>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabla */}
-      <Card className="animate-fade-in-up stagger-3">
+      {/* Tabla de Búsquedas */}
+      <Card className="animate-fade-in-up stagger-4 border-slate-200">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-600 text-sm">📝</span>
+              <CardTitle className="text-lg">Listado de Búsquedas</CardTitle>
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">{filtrados.length}</span>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Presupuesto</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Origen</TableHead>
-                <TableHead>Prioridad</TableHead>
-                {currentUser?.rol === 'admin' && <TableHead>Agente</TableHead>}
-                <TableHead className="text-right">Acciones</TableHead>
+              <TableRow className="bg-slate-50/80">
+                <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Cliente</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Presupuesto</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Tipo</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Origen</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Prioridad</TableHead>
+                {currentUser?.rol === 'admin' && <TableHead className="text-xs uppercase tracking-wider font-semibold text-slate-500">Agente</TableHead>}
+                <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-slate-500">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={currentUser?.rol === 'admin' ? 7 : 6} className="text-center py-12">
+                  <TableCell colSpan={currentUser?.rol === 'admin' ? 7 : 6} className="text-center py-16">
                     <div className="flex flex-col items-center gap-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                      </svg>
-                      <p className="text-slate-500 font-medium">No hay búsquedas</p>
+                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                      </div>
+                      <p className="text-slate-600 font-semibold">No hay búsquedas</p>
                       <p className="text-sm text-slate-400">Creá una nueva búsqueda o ajustá los filtros</p>
+                      <Button
+                        size="sm"
+                        onClick={() => { setMostrarForm(true); resetBusquedaForm() }}
+                        className="mt-2 bg-blue-600 hover:bg-blue-700"
+                      >
+                        + Crear búsqueda
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                filtrados.map((busqueda) => (
-                  <TableRow key={busqueda.id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {busqueda.cliente.nombreCompleto}
-                      </button>
-                    </TableCell>
-                    <TableCell>{busqueda.presupuestoTexto || '-'}</TableCell>
-                    <TableCell>{busqueda.tipoPropiedad || '-'}</TableCell>
-                    <TableCell className="text-sm">{busqueda.origen}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          getPrioridadBusqueda(busqueda).nivel === 'ALTA'
-                            ? 'bg-red-100 text-red-700'
-                            : getPrioridadBusqueda(busqueda).nivel === 'MEDIA'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {getPrioridadBusqueda(busqueda).nivel}
-                      </span>
-                    </TableCell>
-                    {currentUser?.rol === 'admin' && (
-                      <TableCell className="text-sm text-slate-600">
-                        {getAgenteNombre(busqueda)}
+                filtrados.map((busqueda) => {
+                  const prioridad = getPrioridadBusqueda(busqueda)
+                  const estadoColors: Record<string, string> = {
+                    'NUEVO': 'bg-blue-50 text-blue-700 border-blue-200',
+                    'CALIFICADO': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    'VISITA': 'bg-amber-50 text-amber-700 border-amber-200',
+                    'RESERVA': 'bg-violet-50 text-violet-700 border-violet-200',
+                    'CERRADO': 'bg-slate-100 text-slate-600 border-slate-200',
+                    'PERDIDO': 'bg-red-50 text-red-600 border-red-200',
+                  }
+                  return (
+                    <TableRow key={busqueda.id} className="hover:bg-blue-50/30 transition-colors group">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            prioridad.nivel === 'ALTA' ? 'bg-red-500' :
+                            prioridad.nivel === 'MEDIA' ? 'bg-amber-500' : 'bg-slate-300'
+                          }`} />
+                          <div>
+                            <button
+                              onClick={() => window.location.href = `/gestion?clienteId=${busqueda.cliente.id || ''}`}
+                              className="text-sm font-semibold text-slate-900 hover:text-blue-600 transition-colors"
+                            >
+                              {busqueda.cliente.nombreCompleto}
+                            </button>
+                            <p className="text-xs text-slate-400">
+                              {new Date(busqueda.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                            </p>
+                          </div>
+                        </div>
                       </TableCell>
-                    )}
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => { setBusquedaEnVista(busqueda); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                          className="h-8 px-3 border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
+                      <TableCell>
+                        <span className="text-sm font-medium text-slate-700">{busqueda.presupuestoTexto || '-'}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                          estadoColors[busqueda.tipoPropiedad || ''] || 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {busqueda.tipoPropiedad || '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                          estadoColors[busqueda.estado] || 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {busqueda.origen}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${
+                            prioridad.nivel === 'ALTA'
+                              ? 'bg-red-100 text-red-700'
+                              : prioridad.nivel === 'MEDIA'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-100 text-slate-500'
+                          }`}
+                          title={prioridad.motivo}
                         >
-                          Ver
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => abrirEdicion(busqueda)}
-                          className="h-8 px-3 border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
-                          disabled={!canEditBusqueda(busqueda)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => eliminarBusqueda(busqueda)}
-                          className="h-8 px-3 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
-                          disabled={eliminandoBusquedaId === busqueda.id || !canEditBusqueda(busqueda)}
-                        >
-                          {eliminandoBusquedaId === busqueda.id ? 'Eliminando...' : 'Eliminar'}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            prioridad.nivel === 'ALTA' ? 'bg-red-500' :
+                            prioridad.nivel === 'MEDIA' ? 'bg-amber-500' : 'bg-slate-400'
+                          }`} />
+                          {prioridad.nivel}
+                        </span>
+                      </TableCell>
+                      {currentUser?.rol === 'admin' && (
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
+                              {getAgenteNombre(busqueda).charAt(0)}
+                            </span>
+                            <span className="text-sm text-slate-600">{getAgenteNombre(busqueda)}</span>
+                          </div>
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setBusquedaEnVista(busqueda); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                            className="h-7 px-2.5 text-xs border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300"
+                          >
+                            Ver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => abrirEdicion(busqueda)}
+                            className="h-7 px-2.5 text-xs border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300"
+                            disabled={!canEditBusqueda(busqueda)}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => eliminarBusqueda(busqueda)}
+                            className="h-7 px-2.5 text-xs border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+                            disabled={eliminandoBusquedaId === busqueda.id || !canEditBusqueda(busqueda)}
+                          >
+                            {eliminandoBusquedaId === busqueda.id ? '...' : 'Eliminar'}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
