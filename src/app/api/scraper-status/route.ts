@@ -12,8 +12,8 @@ export async function GET() {
     const isProd = process.env.VERCEL === '1'
 
     const proxyConfigurado = !!proxyUrl?.trim()
-    const apiKeyPresente = proxyConfigurado && /api_key=[^&]+/.test(proxyUrl)
-    const apiKeyOculta = apiKeyPresente
+    const apiKeyPresente = proxyConfigurado && proxyUrl ? /api_key=[^&]+/.test(proxyUrl) : false
+    const apiKeyOculta = apiKeyPresente && proxyUrl
       ? proxyUrl.replace(/api_key=[^&]+/, 'api_key=***')
       : null
 

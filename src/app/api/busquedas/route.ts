@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/utils/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, isDemoUser } from '@/lib/auth'
+
+const DEMO_MAX_BUSQUEDAS = 2
 
 export async function GET(request: NextRequest) {
   try {
@@ -132,6 +134,18 @@ export async function POST(request: NextRequest) {
         { error: 'No autorizado' },
         { status: 401 }
       )
+    }
+
+    if (isDemoUser(currentUser)) {
+      const count = await prisma.busqueda.count({
+        where: { createdBy: currentUser.id },
+      })
+      if (count >= DEMO_MAX_BUSQUEDAS) {
+        return NextResponse.json(
+          { error: `Cuenta demo: limite de ${DEMO_MAX_BUSQUEDAS} busquedas. Crea tu cuenta para usar todas las funciones.` },
+          { status: 403 }
+        )
+      }
     }
 
     console.log('POST /api/busquedas: Usuario autenticado:', currentUser.id, currentUser.rol)
