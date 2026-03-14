@@ -51,22 +51,19 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ---
 
-## Variables de Scraping (Opcionales para evitar bloqueos)
+## Variables de Scraping (CRITICAS en Produccion)
 
 ### `SCRAPER_PROXY_URL`
-**Descripción**: URL de un servicio de proxy para scraping (ej: ScraperAPI, ScrapingBee). Ayuda a evitar que los portales inmobiliarios bloqueen las peticiones desde Vercel.
+**Descripción**: URL de un servicio de proxy para scraping (ScraperAPI, ScrapingBee, etc). **Obligatoria en Vercel** porque los portales bloquean las IPs de datacenter. En localhost funciona sin proxy (tu IP residencial), pero en produccion siempre sera bloqueado sin proxy.
 
 **Ejemplo**:
 ```
-SCRAPER_PROXY_URL=https://api.scraperapi.com?api_key=TU_API_KEY&render=false
+SCRAPER_PROXY_URL=https://api.scraperapi.com?api_key=TU_API_KEY&render=false&country_code=ar
 ```
 
-**Nota**: El sistema añadirá automáticamente `&url=URL_DESTINO` al final. Usa `render=false` para mayor velocidad, ya que el sistema ya procesa el HTML.
+**Nota**: El sistema añade automaticamente `url=URL_DESTINO`, `country_code=ar` y `render=false` si no los incluis. Si ScraperAPI devuelve 401, verifica que la API key sea valida y este configurada en Vercel (Settings > Environment Variables). Hace falta un nuevo deploy despues de agregar la variable.
 
-**Ejemplo**:
-```
-AI_PROVIDER=openai
-```
+**Verificar en produccion**: Entra a `https://tu-dominio.vercel.app/api/scraper-status` (logueado) para ver si el proxy esta configurado correctamente.
 
 ---
 

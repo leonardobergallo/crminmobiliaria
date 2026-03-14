@@ -13,6 +13,8 @@ export const SCRAPED_MAX_PER_PORTAL = getEnvPositiveInt('SCRAPED_MAX_PER_PORTAL'
 export const SCRAPER_PORTAL_HARD_LIMIT = getEnvPositiveInt('SCRAPER_PORTAL_HARD_LIMIT', 80)
 export const SEARCH_TIMEOUT_MS = getEnvPositiveInt('SEARCH_TIMEOUT_MS', 25000)
 export const SCRAPER_DELAY_MS = getEnvPositiveInt('SCRAPER_DELAY_MS', 1500)
+export const SCRAPER_DELAY_BETWEEN_PORTALS_MIN = getEnvPositiveInt('SCRAPER_DELAY_BETWEEN_PORTALS_MIN', 2500)
+export const SCRAPER_DELAY_BETWEEN_PORTALS_MAX = getEnvPositiveInt('SCRAPER_DELAY_BETWEEN_PORTALS_MAX', 4500)
 
 export const ZONAS_SANTA_FE_DEFAULT = [
   'Santa Fe Capital',
@@ -101,16 +103,27 @@ export function getScrapingHeaders(referer: string = 'https://www.google.com/') 
   }
 }
 
+function buildProxyUrl(targetUrl: string): string | null {
+  const base = process.env.SCRAPER_PROXY_URL
+  if (!base?.trim()) return null
+
+  const params = new URLSearchParams()
+  params.set('url', targetUrl)
+  if (!base.includes('country_code')) params.set('country_code', 'ar')
+  if (!base.includes('render=')) params.set('render', 'false')
+
+  const sep = base.includes('?') ? '&' : '?'
+  return `${base}${sep}${params.toString()}`
+}
+
 export async function fetchWithTimeout(
   url: string,
   options: Record<string, unknown> = {},
   timeout: number = SEARCH_TIMEOUT_MS,
   counter?: PortalDiagCounter
 ) {
-  const proxyUrl = process.env.SCRAPER_PROXY_URL
-  const withProxy = proxyUrl
-    ? `${proxyUrl}${proxyUrl.includes('?') ? '&' : '?'}url=${encodeURIComponent(url)}`
-    : null
+  const withProxy = buildProxyUrl(url)
+  const isProd = process.env.VERCEL === '1'
 
   const doFetch = async (targetUrl: string, mode: 'proxy' | 'direct') => {
     const controller = new AbortController()
@@ -143,13 +156,23 @@ export async function fetchWithTimeout(
     console.log(`[scraper] proxy:on -> ${url}`)
     const proxied = await doFetch(withProxy, 'proxy')
     const status = Number((proxied as Response)?.status || 0)
-    if (proxied.ok || ![401, 403, 407, 429].includes(status)) {
+    if (proxied.ok) return proxied
+
+    if (status === 401) {
+      console.error('[scraper] proxy 401: API key invalida o no configurada. Verifica SCRAPER_PROXY_URL en Vercel.')
       return proxied
     }
-    console.warn(`[scraper] proxy bloqueado (${status}) -> retry direct ${url}`)
+    if (isProd && [403, 407, 429].includes(status)) {
+      console.warn(`[scraper] proxy ${status} en produccion - no retry direct (siempre bloqueado)`)
+      return proxied
+    }
+    console.warn(`[scraper] proxy ${status} -> retry direct ${url}`)
     return doFetch(url, 'direct')
   }
 
+  if (isProd) {
+    console.warn('[scraper] SCRAPER_PROXY_URL no configurado en produccion - los portales suelen bloquear')
+  }
   console.log(`[scraper] proxy:off -> ${url}`)
   return doFetch(url, 'direct')
 }

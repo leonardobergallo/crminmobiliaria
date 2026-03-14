@@ -1,7 +1,7 @@
-import { BusquedaParseada, PortalKey, ScrapedItem } from './types'
+import type { BusquedaParseada, PortalKey, ScrapedItem } from './types'
 import {
   newPortalTelemetry, delay, diversificarPorPortal, esItemDeSantaFe,
-  SCRAPED_MAX_TOTAL, SCRAPER_DELAY_MS,
+  SCRAPED_MAX_TOTAL, SCRAPER_DELAY_BETWEEN_PORTALS_MIN, SCRAPER_DELAY_BETWEEN_PORTALS_MAX,
 } from './config'
 import {
   scrapearMercadoLibre, scrapearArgenProp, scrapearRemax,
@@ -43,12 +43,27 @@ const SCRAPERS: { key: PortalKey; fn: (c: BusquedaParseada, counter: any) => Pro
   { key: 'buscainmueble', fn: scrapearBuscainmueble },
 ]
 
+function randomDelay(minMs: number, maxMs: number): Promise<void> {
+  const ms = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+  return delay(ms)
+}
+
 export async function scrapearTodos(criterios: BusquedaParseada): Promise<ScrapingResult> {
   const telemetry = newPortalTelemetry()
+  const results: PromiseSettledResult<{ key: PortalKey; items: ScrapedItem[] }>[] = []
 
-  const results = await Promise.allSettled(
-    SCRAPERS.map(({ key, fn }) => fn(criterios, telemetry[key]).then(items => ({ key, items })))
-  )
+  for (let i = 0; i < SCRAPERS.length; i++) {
+    if (i > 0) {
+      await randomDelay(SCRAPER_DELAY_BETWEEN_PORTALS_MIN, SCRAPER_DELAY_BETWEEN_PORTALS_MAX)
+    }
+    const { key, fn } = SCRAPERS[i]
+    try {
+      const items = await fn(criterios, telemetry[key])
+      results.push({ status: 'fulfilled', value: { key, items } })
+    } catch (err) {
+      results.push({ status: 'rejected', reason: err })
+    }
+  }
 
   const portales: PortalResult[] = []
   let allItems: ScrapedItem[] = []
