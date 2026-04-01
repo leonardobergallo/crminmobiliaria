@@ -224,20 +224,6 @@ function ParsearBusquedaContent() {
   const [manualLinks, setManualLinks] = useState<ManualLinkDraft[]>([{ id: 'manual-1', titulo: '', url: '' }])
   const [manualLinksSeleccionados, setManualLinksSeleccionados] = useState<Set<string>>(new Set())
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
-  const [scrapedPage, setScrapedPage] = useState(1)
-  const SCRAPED_PAGE_SIZE = 10
-
-  const getPortalBadge = (sitio?: string | null): string => {
-    const s = (sitio || '').toLowerCase()
-    if (s.includes('zonaprop')) return 'ZP'
-    if (s.includes('argenprop')) return 'AP'
-    if (s.includes('mercado')) return 'ML'
-    if (s.includes('remax')) return 'RX'
-    if (s.includes('google')) return 'GO'
-    if (s.includes('century')) return 'C21'
-    if (s.includes('busca')) return 'BI'
-    return 'WEB'
-  }
 
   const getPortalSearchLinks = (criterios: any) => {
     const op = criterios?.operacion === 'ALQUILER' ? 'alquiler' : 'venta'
@@ -313,6 +299,120 @@ function ParsearBusquedaContent() {
       { id: 'mercadounico', label: 'MercadoUnico', url: `https://www.google.com/search?q=${encodeURIComponent(`mercadounico inmobiliaria santa fe capital ${q}`)}` },
       { id: 'inmo_sf', label: 'Inmobiliarias Santa Fe', url: `https://www.google.com/search?q=${encodeURIComponent(`inmobiliarias en santa fe capital ${tipo}`)}` },
     ]
+  }
+
+  const inferPortalFromUrl = (rawUrl?: string) => {
+    const fallback = {
+      nombre: 'Link externo',
+      badge: 'WEB',
+      dominio: '',
+    }
+
+    if (!rawUrl) return fallback
+
+    try {
+      const url = new URL(rawUrl)
+      const host = url.hostname.replace(/^www\./, '')
+      const lower = host.toLowerCase()
+
+      if (lower.includes('zonaprop')) return { nombre: 'ZonaProp', badge: 'ZP', dominio: host }
+      if (lower.includes('argenprop')) return { nombre: 'ArgenProp', badge: 'AP', dominio: host }
+      if (lower.includes('mercadolibre')) return { nombre: 'MercadoLibre', badge: 'ML', dominio: host }
+      if (lower.includes('remax')) return { nombre: 'Remax', badge: 'RX', dominio: host }
+      if (lower.includes('buscainmueble')) return { nombre: 'Buscainmueble', badge: 'BI', dominio: host }
+      if (lower.includes('mercado-unico')) return { nombre: 'Mercado Unico', badge: 'MU', dominio: host }
+      if (lower.includes('google')) return { nombre: 'Google', badge: 'GO', dominio: host }
+
+      const hostLabel = host.split('.').filter(Boolean)[0] || host
+      return {
+        nombre: hostLabel ? hostLabel.charAt(0).toUpperCase() + hostLabel.slice(1) : 'Link externo',
+        badge: 'WEB',
+        dominio: host,
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  const deriveTitleFromUrl = (rawUrl?: string) => {
+    if (!rawUrl) return ''
+
+    try {
+      const url = new URL(rawUrl)
+      const lastSegment = url.pathname.split('/').filter(Boolean).pop() || ''
+      const cleaned = lastSegment
+        .replace(/\.html?$/i, '')
+        .replace(/^clasificado\//i, '')
+        .replace(/^[a-z0-9]+-/i, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      if (!cleaned) return ''
+
+      return cleaned
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
+    } catch {
+      return ''
+    }
+  }
+
+  const getManualLinkPreview = (link: ManualLinkDraft) => {
+    const portal = inferPortalFromUrl(link.url.trim())
+    const tituloDesdeUrl = deriveTitleFromUrl(link.url.trim())
+    return {
+      portal,
+      titulo: link.titulo.trim() || tituloDesdeUrl || portal.nombre,
+      subtitulo: portal.dominio || 'Pegá una URL completa para identificar el portal',
+    }
+  }
+
+  const getPortalColorClasses = (badge?: string) => {
+    switch (badge) {
+      case 'ZP':
+        return {
+          chip: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+          card: 'border-emerald-300 bg-emerald-50/60',
+        }
+      case 'AP':
+        return {
+          chip: 'border-sky-200 bg-sky-50 text-sky-700',
+          card: 'border-sky-300 bg-sky-50/60',
+        }
+      case 'ML':
+        return {
+          chip: 'border-amber-200 bg-amber-50 text-amber-700',
+          card: 'border-amber-300 bg-amber-50/60',
+        }
+      case 'RX':
+        return {
+          chip: 'border-violet-200 bg-violet-50 text-violet-700',
+          card: 'border-violet-300 bg-violet-50/60',
+        }
+      case 'BI':
+        return {
+          chip: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+          card: 'border-cyan-300 bg-cyan-50/60',
+        }
+      case 'MU':
+        return {
+          chip: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700',
+          card: 'border-fuchsia-300 bg-fuchsia-50/60',
+        }
+      case 'GO':
+        return {
+          chip: 'border-rose-200 bg-rose-50 text-rose-700',
+          card: 'border-rose-300 bg-rose-50/60',
+        }
+      default:
+        return {
+          chip: 'border-slate-200 bg-slate-50 text-slate-700',
+          card: 'border-slate-300 bg-slate-50/60',
+        }
+    }
   }
 
   useEffect(() => {
@@ -422,19 +522,6 @@ function ParsearBusquedaContent() {
     () => inmoMercadoUnico ? getInmoPrimaryLabel(inmoMercadoUnico) : '',
     [inmoMercadoUnico]
   )
-  const scrapedItemsConIndice = useMemo(() => {
-    const items = Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems : []
-    return items.map((item: any, idx: number) => ({ item, idx }))
-  }, [resultado])
-  const scrapedTotalPages = Math.max(1, Math.ceil(scrapedItemsConIndice.length / SCRAPED_PAGE_SIZE))
-  const scrapedItemsPaginados = scrapedItemsConIndice.slice(
-    (scrapedPage - 1) * SCRAPED_PAGE_SIZE,
-    scrapedPage * SCRAPED_PAGE_SIZE
-  )
-
-  useEffect(() => {
-    setScrapedPage(1)
-  }, [scrapedItemsConIndice.length])
 
   const busquedaSeleccionada = useMemo(() => {
     return busquedasOrdenadas.find((b) => b.id === busquedaId) || null
@@ -495,7 +582,25 @@ function ParsearBusquedaContent() {
   }
 
   const updateManualLink = (id: string, field: 'titulo' | 'url', value: string) => {
-    setManualLinks((prev) => prev.map((link) => (link.id === id ? { ...link, [field]: value } : link)))
+    setManualLinks((prev) => {
+      const next = prev.map((link) => (link.id === id ? { ...link, [field]: value } : link))
+
+      if (field !== 'url') return next
+
+      const trimmed = value.trim()
+      if (!trimmed) return next
+
+      const editedIndex = next.findIndex((link) => link.id === id)
+      const isLast = editedIndex === next.length - 1
+      const lastHasContent = next[next.length - 1]?.url.trim()
+
+      if (isLast && lastHasContent) {
+        const nextId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        next.push({ id: nextId, titulo: '', url: '' })
+      }
+
+      return next
+    })
   }
 
   const addManualLink = () => {
@@ -524,19 +629,37 @@ function ParsearBusquedaContent() {
     })
   }
 
+  const manualLinksOrdenados = [...manualLinks].sort((a, b) => {
+    const aSelected = manualLinksSeleccionados.has(a.id) ? 1 : 0
+    const bSelected = manualLinksSeleccionados.has(b.id) ? 1 : 0
+    if (aSelected !== bSelected) return bSelected - aSelected
+    return manualLinks.findIndex((item) => item.id === a.id) - manualLinks.findIndex((item) => item.id === b.id)
+  })
+
+  const moveManualLink = (id: string, direction: 'up' | 'down') => {
+    setManualLinks((prev) => {
+      const index = prev.findIndex((link) => link.id === id)
+      if (index < 0) return prev
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev
+
+      const next = [...prev]
+      const [item] = next.splice(index, 1)
+      next.splice(targetIndex, 0, item)
+      return next
+    })
+  }
+
   const guardarBusqueda = () => {
     if (!clienteId) return
     const items = Array.from(seleccionadas).map((k) => {
       const [tipo, idx] = k.split(':')
       const i = parseInt(idx, 10)
       if (tipo === 'web' && resultado?.webMatches?.[i]) {
-        const w = resultado.webMatches[i]
-        return { tipo: 'externo', item: { url: w.url, titulo: w.titulo || w.sitio || 'Link sugerido' } }
-      }
-      if (tipo === 'scraped' && scrapedItemsConIndice?.[i]?.item) {
-        const s = scrapedItemsConIndice[i].item
-        return { tipo: 'externo', item: { url: s.url, titulo: s.titulo || s.sitio || 'Portal' } }
-      }
+      const w = resultado.webMatches[i]
+      return { tipo: 'externo', item: { url: w.url, titulo: w.titulo || w.sitio || 'Link sugerido' } }
+    }
       if (tipo === 'match' && resultado?.matches?.[i]) return { tipo: 'match', item: resultado.matches[i] }
       return null
     }).filter(Boolean)
@@ -545,7 +668,7 @@ function ParsearBusquedaContent() {
       .filter((link) => manualLinksSeleccionados.has(link.id))
       .map((link) => link.url.trim() ? ({
         tipo: 'externo',
-        item: { url: link.url.trim(), titulo: link.titulo.trim() || 'Link externo' },
+        item: { url: link.url.trim(), titulo: getManualLinkPreview(link).titulo || 'Link externo' },
       }) : null)
       .filter(Boolean)
 
@@ -624,15 +747,15 @@ function ParsearBusquedaContent() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Buscar con IA</h1>
-          <p className="text-sm text-slate-600 mt-1">Selecciona una busqueda y analiza portales + CRM en un click.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Busqueda guiada</h1>
+          <p className="text-sm text-slate-600 mt-1">Selecciona una busqueda, abre portales sugeridos y carga links manuales para seguir el flujo.</p>
         </div>
         <Button variant="outline" onClick={() => router.push('/busquedas')}>Volver</Button>
       </div>
       <Card className="border-slate-200 bg-slate-50">
         <CardContent className="pt-4">
           <div className="text-sm text-slate-700">
-            Guia rapida: `1)` elegir cliente, `2)` elegir busqueda, `3)` analizar, `4)` marcar propiedades/links, `5)` guardar y pasar a Gestion.
+            Guia rapida: `1)` elegir cliente, `2)` elegir busqueda, `3)` abrir portales sugeridos, `4)` pegar links manuales y ordenarlos, `5)` guardar y pasar a Gestion.
           </div>
         </CardContent>
       </Card>
@@ -640,8 +763,8 @@ function ParsearBusquedaContent() {
       <Card>
         <CardHeader>
           <CardTitle>Cliente y busquedas</CardTitle>
-          <p className="text-sm text-slate-600">
-            Este bloque define el contexto del analisis. Todo lo que selecciones se podra enviar al cliente desde Gestion.
+            <p className="text-sm text-slate-600">
+              Este bloque define el contexto de la busqueda. Todo lo que selecciones se podra enviar al cliente desde Gestion.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -788,14 +911,14 @@ function ParsearBusquedaContent() {
           <CardHeader>
             <CardTitle>Resultado</CardTitle>
             <p className="text-sm text-slate-600">
-              Revisa oportunidades de portales, links y propiedades del CRM. Usa checks para elegir que enviar.
+              Usa los accesos sugeridos para investigar, carga los links manuales encontrados y selecciona lo que quieras pasar a Gestion.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div className="text-xs text-slate-500">Portales</div>
-                <div className="text-lg font-semibold text-slate-900">{Array.isArray(resultado?.scrapedItems) ? resultado.scrapedItems.length : 0}</div>
+                <div className="text-xs text-slate-500">Accesos</div>
+                <div className="text-lg font-semibold text-slate-900">{portalSearchLinks.length + analisisExtraLinks.length}</div>
               </div>
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div className="text-xs text-slate-500">Links</div>
@@ -817,35 +940,6 @@ function ParsearBusquedaContent() {
                 <span className="ml-1">Cliente: <span className="font-semibold">{clienteLabel}</span>.</span>
               ) : null}
             </div>
-
-            {Array.isArray(resultado?.portalDiagnostics) && resultado.portalDiagnostics.length > 0 && (
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <div className="text-sm font-semibold text-slate-800 mb-2">Diagnostico por portal</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {resultado.portalDiagnostics.map((d: any, idx: number) => {
-                    const estado = String(d?.estado || 'SIN_RESULTADOS')
-                    const estadoClass =
-                      estado === 'OK'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : estado === 'TIMEOUT'
-                          ? 'bg-amber-100 text-amber-700'
-                          : estado === 'BLOQUEO_PROBABLE'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-slate-100 text-slate-700'
-                    return (
-                      <div key={`${d?.portal || 'portal'}-${idx}`} className="rounded border border-slate-200 p-2 bg-slate-50">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-slate-900">{d?.portal || 'Portal'}</span>
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${estadoClass}`}>{estado}</span>
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">{d?.razon || 'Sin detalle'}</div>
-                        <div className="text-xs text-slate-500 mt-1">Publicaciones: {Number(d?.publicaciones || 0)}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
 
             <div className="flex gap-2 flex-wrap">
               <Button
@@ -871,11 +965,9 @@ function ParsearBusquedaContent() {
             </div>
 
             <div className="space-y-3">
-                <div className="text-sm font-semibold text-slate-800">
-                  Oportunidades en Portales ({scrapedItemsConIndice.length})
-                </div>
+                <div className="text-sm font-semibold text-slate-800">Investigacion externa guiada</div>
                 <div className="text-xs text-slate-500">
-                  Paso 1: abre portales con filtros. Paso 2: compara fuentes. Paso 3: usa inmobiliarias de Santa Fe.
+                  Paso 1: abre portales con filtros. Paso 2: revisa fuentes complementarias. Paso 3: elige inmobiliarias de Santa Fe. Paso 4: pega abajo los links encontrados.
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <div className="text-sm font-semibold text-slate-800 mb-2">
@@ -969,88 +1061,9 @@ function ParsearBusquedaContent() {
                     </a>
                   </div>
                 </div>
-                {scrapedItemsConIndice.length > 0 ? (
-                  <>
-                    <div className="flex items-center justify-between text-xs text-slate-600">
-                      <span>
-                        Mostrando {(scrapedPage - 1) * SCRAPED_PAGE_SIZE + 1}-
-                        {Math.min(scrapedPage * SCRAPED_PAGE_SIZE, scrapedItemsConIndice.length)} de {scrapedItemsConIndice.length}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setScrapedPage((p) => Math.max(1, p - 1))}
-                          disabled={scrapedPage <= 1}
-                        >
-                          Anterior
-                        </Button>
-                        <span>Pagina {scrapedPage} de {scrapedTotalPages}</span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setScrapedPage((p) => Math.min(scrapedTotalPages, p + 1))}
-                          disabled={scrapedPage >= scrapedTotalPages}
-                        >
-                          Siguiente
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {scrapedItemsPaginados.map(({ item, idx }: any) => (
-                        <div key={`${item?.url || idx}`} className="flex gap-3 p-3 bg-white border rounded-lg">
-                          {item?.img ? (
-                            <img
-                              src={item.img}
-                              alt={item?.titulo || 'propiedad'}
-                              className="w-20 h-20 object-cover rounded"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-20 h-20 rounded bg-slate-100" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-semibold text-slate-500">
-                              {item?.sitio || 'Portal'}
-                            </div>
-                            <div className="text-sm font-semibold text-slate-900 line-clamp-2">
-                              {item?.titulo || '-'}
-                            </div>
-                            <div className="text-sm font-bold text-slate-900 mt-1">
-                              {item?.precio || '-'}
-                            </div>
-                            <div className="text-xs text-slate-600 line-clamp-1">
-                              {item?.ubicacion || '-'}
-                            </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={seleccionadas.has(`scraped:${idx}`)}
-                                onChange={() => toggleSeleccion(`scraped:${idx}`)}
-                              />
-                              {item?.url && (
-                                <a
-                                  href={item.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:border-sky-300"
-                                >
-                                  Ver portal
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    No se pudieron extraer publicaciones en tiempo real. Usa los botones de portales para abrir ZonaProp/ArgenProp/MercadoLibre con filtros.
-                  </div>
-                )}
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                  El flujo ya no depende del scraping en vivo. Abrí los portales sugeridos, copiá los links reales que encuentres y cargalos manualmente abajo.
+                </div>
               </div>
 
             <Card>
@@ -1061,14 +1074,35 @@ function ParsearBusquedaContent() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
-                {manualLinks.map((manualLink, index) => {
+                {manualLinksOrdenados.map((manualLink, index) => {
                   const disabledSelect = !manualLink.url.trim()
                   const isSelected = manualLinksSeleccionados.has(manualLink.id)
+                  const preview = getManualLinkPreview(manualLink)
+                  const portalColors = getPortalColorClasses(preview.portal.badge)
+                  const originalIndex = manualLinks.findIndex((item) => item.id === manualLink.id)
                   return (
                     <div key={manualLink.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-semibold text-slate-600">Link #{index + 1}</div>
+                        <div className="text-xs font-semibold text-slate-600">Link #{originalIndex + 1}</div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={originalIndex === 0}
+                            onClick={() => moveManualLink(manualLink.id, 'up')}
+                          >
+                            Subir
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={originalIndex === manualLinks.length - 1}
+                            onClick={() => moveManualLink(manualLink.id, 'down')}
+                          >
+                            Bajar
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"
@@ -1099,9 +1133,54 @@ function ParsearBusquedaContent() {
                         value={manualLink.url}
                         onChange={(e) => updateManualLink(manualLink.id, 'url', e.target.value)}
                       />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (!disabledSelect) toggleManualLinkSeleccionado(manualLink.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (disabledSelect) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleManualLinkSeleccionado(manualLink.id)
+                          }
+                        }}
+                        className={`rounded-lg border p-3 transition cursor-pointer ${
+                        isSelected
+                          ? portalColors.card
+                          : 'border-slate-200 bg-white'
+                      }`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex h-6 min-w-9 items-center justify-center rounded border px-2 text-[10px] font-semibold ${portalColors.chip}`}>
+                                {preview.portal.badge}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-500">{preview.portal.nombre}</span>
+                              {isSelected && (
+                                <span className="text-[10px] font-semibold text-emerald-700">Seleccionado</span>
+                              )}
+                            </div>
+                            <div className="mt-2 text-sm font-semibold text-slate-900 break-words">
+                              {preview.titulo}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500 break-all">
+                              {manualLink.url.trim() || preview.subtitulo}
+                            </div>
+                          </div>
+                          <div className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded border text-xs ${
+                            isSelected
+                              ? 'border-emerald-600 bg-emerald-600 text-white'
+                              : 'border-slate-300 bg-white text-transparent'
+                          }`}>
+                            OK
+                          </div>
+                        </div>
+                      </div>
                       {isSelected && (
                         <div className="text-sm text-green-700">
-                          Link seleccionado: {manualLink.titulo.trim() || 'Sin titulo'} - {manualLink.url.trim()}
+                          Link seleccionado: {preview.titulo} - {manualLink.url.trim()}
                         </div>
                       )}
                     </div>
@@ -1112,47 +1191,6 @@ function ParsearBusquedaContent() {
                 </Button>
               </CardContent>
             </Card>
-
-            {false && Array.isArray(resultado?.webMatches) && resultado.webMatches.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-800">
-                  Links sugeridos ({resultado.webMatches.length})
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {resultado.webMatches.map((w: any, idx: number) => (
-                    <div key={`${w?.url || idx}`} className="flex items-center gap-3 p-3 bg-white border rounded-lg hover:shadow-sm">
-                      <input
-                        type="checkbox"
-                        checked={seleccionadas.has(`web:${idx}`)}
-                        onChange={() => toggleSeleccion(`web:${idx}`)}
-                        className="mt-1"
-                      />
-                      <div className="inline-flex h-6 min-w-9 items-center justify-center rounded border border-slate-200 bg-slate-50 px-1 text-[10px] text-slate-600">
-                        {getPortalBadge(w?.sitio)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-slate-900">
-                          {w?.sitio || 'Link'}
-                        </div>
-                        <div className="text-xs text-slate-600 line-clamp-1">
-                          {w?.titulo || w?.url}
-                        </div>
-                      </div>
-                      {w?.url && (
-                        <a
-                          href={w.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-sky-200 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:border-sky-300"
-                        >
-                          Ver
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {Array.isArray(resultado?.matches) && resultado.matches.length > 0 && (
               <div className="space-y-2">
