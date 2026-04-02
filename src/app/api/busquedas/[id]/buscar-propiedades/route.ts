@@ -3,7 +3,6 @@ import { prisma } from '@/lib/utils/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import {
   BusquedaParseada,
-  scrapearTodos,
   ZONAS_SANTA_FE_DEFAULT,
 } from '@/lib/scrapers'
 
@@ -50,9 +49,7 @@ export async function GET(
       confianza: 100,
     }
 
-    console.log(`[buscar-propiedades] Buscando para busqueda ${id}:`, JSON.stringify(criterios, null, 2))
-
-    const result = await scrapearTodos(criterios)
+    console.log(`[buscar-propiedades] Flujo manual para busqueda ${id}:`, JSON.stringify(criterios, null, 2))
 
     const titulo = [
       criterios.tipoPropiedad !== 'OTRO' ? criterios.tipoPropiedad.toLowerCase() : null,
@@ -66,9 +63,10 @@ export async function GET(
       busquedaId: id,
       titulo,
       criterios,
-      items: result.items,
-      portales: result.portales,
-      totalItems: result.totalItems,
+      items: [],
+      portales: [],
+      totalItems: 0,
+      flujoManual: true,
     })
   } catch (error) {
     console.error('[buscar-propiedades] Error:', error)

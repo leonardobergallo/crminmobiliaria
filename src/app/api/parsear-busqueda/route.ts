@@ -5,15 +5,9 @@ import OpenAI from 'openai'
 
 export const maxDuration = 55
 import {
-  BusquedaParseada, PortalDiagCounter, PortalKey,
-  newPortalTelemetry, SCRAPED_MAX_TOTAL, SCRAPED_MAX_PER_PORTAL, MAX_DB_MATCHES,
-  ZONAS_SANTA_FE_DEFAULT, esItemDeSantaFe, diversificarPorPortal,
-  getDormitoriosFiltro,
+  BusquedaParseada, MAX_DB_MATCHES,
+  ZONAS_SANTA_FE_DEFAULT,
 } from '@/lib/scrapers'
-import {
-  scrapearMercadoLibre, scrapearArgenProp, scrapearRemax,
-  scrapearZonaProp, scrapearBuscainmueble,
-} from '@/lib/scrapers/portals'
 import {
   buildMercadoLibreUrl, buildArgenPropUrl, buildRemaxUrl,
   buildZonaPropUrl, buildBuscainmuebleUrl,
@@ -222,88 +216,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Buscar coincidencias y scraping paralelo
+    // Buscar coincidencias en CRM y generar accesos externos.
     const [matches, webMatches] = await Promise.all([
       encontrarMatchesEnDb(busquedaParseada, currentUser),
       Promise.resolve(generarLinksExternos(busquedaParseada))
     ])
-    
-    const telemetry = newPortalTelemetry()
-    console.log('Iniciando scraping paralelo de portales...')
-    const [mlItems, apItems, remaxItems, zpItems, biItems] = await Promise.all([
-      scrapearMercadoLibre(busquedaParseada, telemetry.mercadolibre),
-      scrapearArgenProp(busquedaParseada, telemetry.argenprop),
-      scrapearRemax(busquedaParseada, telemetry.remax),
-      scrapearZonaProp(busquedaParseada, telemetry.zonaprop),
-      scrapearBuscainmueble(busquedaParseada, telemetry.buscainmueble)
-    ])
-
-    const allScraped = [...mlItems, ...apItems, ...remaxItems, ...zpItems, ...biItems]
-    const uniqueScraped = Array.from(new Map(allScraped.map(item => [item.url, item])).values())
-      .filter((item: any) => esItemDeSantaFe(item))
-    const scrapedDiversificado = diversificarPorPortal(
-      uniqueScraped,
-      SCRAPED_MAX_TOTAL,
-      SCRAPED_MAX_PER_PORTAL
-    )
-    const scrapedItemsFinal = scrapedDiversificado.slice(0, 50)
-    const portalStats = {
-      mercadolibre: mlItems.length,
-      argenprop: apItems.length,
-      remax: remaxItems.length,
-      zonaprop: zpItems.length,
-      buscainmueble: biItems.length,
-      totalUnicos: uniqueScraped.length,
-      totalDiversificados: scrapedDiversificado.length,
-      totalFallbackLinks: 0,
-    }
-
-    const buildPortalDiag = (portal: string, count: number, counter: PortalDiagCounter) => {
-      let estado = 'SIN_RESULTADOS'
-      let razon = 'No se extrajeron publicaciones validas para los filtros.'
-
-      if (count > 0) {
-        estado = 'OK'
-        razon = `${count} publicaciones extraidas.`
-      } else if (counter.timeouts > 0) {
-        estado = 'TIMEOUT'
-        razon = 'El portal no respondio a tiempo durante el scraping.'
-      } else if (counter.blockedSignals > 0) {
-        estado = 'BLOQUEO_PROBABLE'
-        razon = 'Se detectaron senales de bloqueo o anti-bot.'
-      } else if (counter.httpErrors > 0) {
-        estado = 'HTTP_ERROR'
-        razon = 'El portal respondio con error HTTP.'
-      } else if (counter.selectorFallbacks > 0) {
-        estado = 'SELECTOR_SIN_MATCH'
-        razon = 'Cambio de estructura HTML o selectores sin coincidencias.'
-      }
-
-      return {
-        portal,
-        estado,
-        razon,
-        publicaciones: count,
-        metricas: counter,
-      }
-    }
-
-    const portalDiagnostics = [
-      buildPortalDiag('MercadoLibre', mlItems.length, telemetry.mercadolibre),
-      buildPortalDiag('ArgenProp', apItems.length, telemetry.argenprop),
-      buildPortalDiag('Remax', remaxItems.length, telemetry.remax),
-      buildPortalDiag('ZonaProp', zpItems.length, telemetry.zonaprop),
-      buildPortalDiag('Buscainmueble', biItems.length, telemetry.buscainmueble),
-    ]
 
     return NextResponse.json({
       success: true,
       busquedaParseada,
       matches,
       webMatches,
-      scrapedItems: scrapedItemsFinal,
-      portalStats,
-      portalDiagnostics,
+      scrapedItems: [],
+      portalStats: null,
+      portalDiagnostics: [],
+      flujoManual: true,
       usandoIA,
       guardado: guardadoInfo
     })
@@ -886,37 +813,6 @@ async function encontrarMatchesEnDb(
   }
 
   return deduped.slice(0, MAX_DB_MATCHES)
-}
-
-function construirFallbackPortalesDesdeLinks(
-  criterios: BusquedaParseada,
-  links: Array<{ sitio?: string; titulo?: string; url?: string; categoria?: string }>
-) {
-  const ubicacionBase = criterios.zonas?.[0] || 'Santa Fe Capital'
-  const precioBase = 'Consultar'
-
-  return (links || [])
-    .filter((l) => {
-      if (!l?.url) return false
-      if (!(l?.categoria === 'PORTALES' || l?.categoria === 'INMOBILIARIAS')) return false
-
-      // Evitar mostrar cards "falsas" desde busquedas de Google.
-      // El fallback debe priorizar links directos de portales/inmobiliarias.
-      const url = String(l.url).toLowerCase()
-      if (url.includes('google.com/search') || url.includes('google.com.ar/search')) return false
-
-      return true
-    })
-    .map((l) => ({
-      sitio: l.sitio || 'Portal',
-      titulo: l.titulo || `${l.sitio || 'Portal'}: busqueda filtrada`,
-      precio: precioBase,
-      ubicacion: ubicacionBase,
-      url: l.url!,
-      img: null,
-      origen: 'LINK_SUGERIDO',
-      esSugerido: true,
-    }))
 }
 
 // ----------------------------------------------------------------------

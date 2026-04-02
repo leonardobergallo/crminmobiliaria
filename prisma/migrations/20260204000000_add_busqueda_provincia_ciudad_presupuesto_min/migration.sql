@@ -1,0 +1,3 @@
+-- Migration restored as no-op to repair Prisma migration history.
+-- The related search filters were implemented at application level and the
+-- current schema no longer requires additional SQL changes here.
