@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { calculateManualLinkMatch, parseManualLink } from '@/lib/manual-links'
 
 type Cliente = {
   id: string
@@ -223,6 +224,7 @@ function ParsearBusquedaContent() {
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set())
   const [manualLinks, setManualLinks] = useState<ManualLinkDraft[]>([{ id: 'manual-1', titulo: '', url: '' }])
   const [manualLinksSeleccionados, setManualLinksSeleccionados] = useState<Set<string>>(new Set())
+  const [manualLinkActivoId, setManualLinkActivoId] = useState<string | null>('manual-1')
   const [inmoMercadoUnico, setInmoMercadoUnico] = useState('')
 
   const getPortalSearchLinks = (criterios: any) => {
@@ -367,6 +369,64 @@ function ParsearBusquedaContent() {
       portal,
       titulo: link.titulo.trim() || tituloDesdeUrl || portal.nombre,
       subtitulo: portal.dominio || 'Pegá una URL completa para identificar el portal',
+    }
+  }
+
+  const getManualLinkAnalysis = (link: ManualLinkDraft) => {
+    const rawUrl = link.url.trim()
+
+    if (!rawUrl || !busquedaSeleccionada) {
+      return null
+    }
+
+    try {
+      const parsed = parseManualLink(rawUrl)
+      const match = calculateManualLinkMatch(
+        {
+          id: busquedaSeleccionada.id,
+          clienteId: clienteId || '',
+          tipoPropiedad: busquedaSeleccionada.tipoPropiedad,
+          ubicacionPreferida: busquedaSeleccionada.ubicacionPreferida,
+          presupuestoTexto: busquedaSeleccionada.presupuestoTexto,
+          presupuestoValor: busquedaSeleccionada.presupuestoValor,
+          moneda: busquedaSeleccionada.moneda,
+          dormitoriosMin: busquedaSeleccionada.dormitoriosMin,
+        },
+        parsed
+      )
+
+      return {
+        parsed,
+        match,
+        checks: [
+          {
+            label: 'Zona',
+            ok: Boolean(match.breakdown.zona),
+            pending: !parsed.zonaInferida || !busquedaSeleccionada.ubicacionPreferida,
+            detail: `Busqueda: ${busquedaSeleccionada.ubicacionPreferida || 'sin dato'} | Link: ${parsed.zonaInferida || 'sin dato'}`,
+          },
+          {
+            label: 'Precio',
+            ok: Boolean(match.breakdown.precio),
+            pending: !parsed.precioInferido || (!busquedaSeleccionada.presupuestoTexto && !busquedaSeleccionada.presupuestoValor),
+            detail: `Busqueda: ${busquedaSeleccionada.presupuestoTexto || busquedaSeleccionada.presupuestoValor || 'sin dato'} | Link: ${parsed.precioInferido ? `${parsed.monedaInferida || 'USD'} ${parsed.precioInferido.toLocaleString('es-AR')}` : 'sin dato'}`,
+          },
+          {
+            label: 'Tipo',
+            ok: Boolean(match.breakdown.tipo),
+            pending: !parsed.tipoPropiedadInferido || !busquedaSeleccionada.tipoPropiedad,
+            detail: `Busqueda: ${busquedaSeleccionada.tipoPropiedad || 'sin dato'} | Link: ${parsed.tipoPropiedadInferido || 'sin dato'}`,
+          },
+          {
+            label: 'Dormitorios',
+            ok: Boolean(match.breakdown.dormitorios),
+            pending: parsed.dormitoriosInferidos === null || parsed.dormitoriosInferidos === undefined || busquedaSeleccionada.dormitoriosMin === null || busquedaSeleccionada.dormitoriosMin === undefined,
+            detail: `Busqueda: ${busquedaSeleccionada.dormitoriosMin ?? 'sin dato'} | Link: ${parsed.dormitoriosInferidos ?? 'sin dato'}`,
+          },
+        ],
+      }
+    } catch {
+      return null
     }
   }
 
@@ -582,6 +642,7 @@ function ParsearBusquedaContent() {
   }
 
   const updateManualLink = (id: string, field: 'titulo' | 'url', value: string) => {
+    setManualLinkActivoId(id)
     setManualLinks((prev) => {
       const next = prev.map((link) => (link.id === id ? { ...link, [field]: value } : link))
 
@@ -605,6 +666,7 @@ function ParsearBusquedaContent() {
 
   const addManualLink = () => {
     const nextId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setManualLinkActivoId(nextId)
     setManualLinks((prev) => [...prev, { id: nextId, titulo: '', url: '' }])
   }
 
@@ -613,6 +675,7 @@ function ParsearBusquedaContent() {
       if (prev.length === 1) return [{ ...prev[0], titulo: '', url: '' }]
       return prev.filter((link) => link.id !== id)
     })
+    setManualLinkActivoId((prev) => (prev === id ? null : prev))
     setManualLinksSeleccionados((prev) => {
       const next = new Set(prev)
       next.delete(id)
@@ -633,6 +696,12 @@ function ParsearBusquedaContent() {
     const aSelected = manualLinksSeleccionados.has(a.id) ? 1 : 0
     const bSelected = manualLinksSeleccionados.has(b.id) ? 1 : 0
     if (aSelected !== bSelected) return bSelected - aSelected
+    const aFilled = a.url.trim() ? 1 : 0
+    const bFilled = b.url.trim() ? 1 : 0
+    if (aFilled !== bFilled) return bFilled - aFilled
+    const aActive = manualLinkActivoId === a.id ? 1 : 0
+    const bActive = manualLinkActivoId === b.id ? 1 : 0
+    if (aActive !== bActive) return bActive - aActive
     return manualLinks.findIndex((item) => item.id === a.id) - manualLinks.findIndex((item) => item.id === b.id)
   })
 
@@ -717,6 +786,7 @@ function ParsearBusquedaContent() {
     setSeleccionadas(new Set())
     setManualLinks([{ id: 'manual-1', titulo: '', url: '' }])
     setManualLinksSeleccionados(new Set())
+    setManualLinkActivoId('manual-1')
     try {
       const mensaje = buildMensajeFromBusqueda(busquedaSeleccionada)
       const res = await fetch('/api/parsear-busqueda', {
@@ -747,15 +817,15 @@ function ParsearBusquedaContent() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Busqueda guiada</h1>
-          <p className="text-sm text-slate-600 mt-1">Selecciona una busqueda, abre portales sugeridos y carga links manuales para seguir el flujo.</p>
+          <h1 className="text-2xl font-bold text-slate-900">Flujo manual de links</h1>
+          <p className="text-sm text-slate-600 mt-1">Elegí una busqueda del cliente, prepará los accesos y cargá links manuales para continuar el flujo.</p>
         </div>
         <Button variant="outline" onClick={() => router.push('/busquedas')}>Volver</Button>
       </div>
       <Card className="border-slate-200 bg-slate-50">
         <CardContent className="pt-4">
           <div className="text-sm text-slate-700">
-            Guia rapida: `1)` elegir cliente, `2)` elegir busqueda, `3)` abrir portales sugeridos, `4)` pegar links manuales y ordenarlos, `5)` guardar y pasar a Gestion.
+            Guia rapida: `1)` elegir cliente, `2)` elegir busqueda, `3)` tocar preparar flujo, `4)` pegar links manuales, `5)` seleccionar cards, `6)` guardar y pasar a Gestion.
           </div>
         </CardContent>
       </Card>
@@ -840,7 +910,7 @@ function ParsearBusquedaContent() {
 
           {busquedaSeleccionada && (
             <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3 space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-sky-600">Busqueda seleccionada</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-sky-600">Requerimiento base del cliente</div>
               <div className="flex flex-wrap gap-2">
                 {busquedaSeleccionada.tipoPropiedad && (
                   <span className="inline-flex items-center rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700">
@@ -870,8 +940,32 @@ function ParsearBusquedaContent() {
             </div>
           )}
 
+          {busquedaSeleccionada && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Estas cargando links para esta busqueda
+              </div>
+              <div className="text-sm text-emerald-900">
+                El sistema va a usar esta busqueda como contexto para abrir portales con filtros y para guardar despues los links correctos en Gestion del Cliente.
+              </div>
+              <div className="text-xs text-emerald-800">
+                Primero elegis la busqueda. Despues buscas links reales en portales. Finalmente seleccionas cards y las mandas a Gestion.
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Este paso no busca propiedades automaticamente en portales. Solo prepara el contexto, te muestra accesos utiles y despues vos pegás los links manuales encontrados.
+          </div>
+
           {error && (
             <div className="text-sm text-red-600">{error}</div>
+          )}
+
+          {!busquedaSeleccionada && (
+            <div className="text-sm text-slate-600">
+              Elegí primero un requerimiento base del cliente para habilitar este flujo.
+            </div>
           )}
 
           <div className="flex gap-2 flex-wrap">
@@ -881,14 +975,14 @@ function ParsearBusquedaContent() {
               onClick={analizar}
               className="bg-sky-600 hover:bg-sky-700"
             >
-              {submitting ? 'Analizando...' : 'Analizar propiedades'}
+              {submitting ? 'Preparando...' : 'Preparar flujo manual'}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={irNuevaBusqueda}
             >
-              Nueva busqueda
+              Nueva búsqueda
             </Button>
             <Button
               type="button"
@@ -907,39 +1001,55 @@ function ParsearBusquedaContent() {
       </Card>
 
       {resultado && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Resultado</CardTitle>
-            <p className="text-sm text-slate-600">
-              Usa los accesos sugeridos para investigar, carga los links manuales encontrados y selecciona lo que quieras pasar a Gestion.
-            </p>
+        <Card className="overflow-hidden border-slate-200/90 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] shadow-md shadow-slate-200/60">
+          <CardHeader className="border-b border-slate-100 bg-white/80 backdrop-blur">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Flujo preparado</div>
+                <CardTitle className="mt-1 text-2xl text-slate-900">Buscar, evaluar y guardar desde un solo panel</CardTitle>
+                <p className="mt-2 text-sm text-slate-600">
+                  Pegá primero los links manuales que encontraste. Los accesos sugeridos quedan como apoyo para abrir portales y seguir buscando.
+                </p>
+              </div>
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
+                Flujo listo
+                {clienteLabel ? (
+                  <span className="ml-1">para <span className="font-semibold">{clienteLabel}</span></span>
+                ) : null}
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div className="text-xs text-slate-500">Accesos</div>
-                <div className="text-lg font-semibold text-slate-900">{portalSearchLinks.length + analisisExtraLinks.length}</div>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Links cargados</div>
+                <div className="mt-2 text-3xl font-semibold leading-none text-emerald-900">
+                  {manualLinks.filter((item) => item.url.trim()).length}
+                </div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div className="text-xs text-slate-500">Links</div>
-                <div className="text-lg font-semibold text-slate-900">{Array.isArray(resultado?.webMatches) ? resultado.webMatches.length : 0}</div>
+              <div className="rounded-3xl border border-sky-200 bg-sky-50 px-4 py-4 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Links seleccionados</div>
+                <div className="mt-2 text-3xl font-semibold leading-none text-sky-900">{manualLinksSeleccionados.size}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div className="text-xs text-slate-500">CRM</div>
-                <div className="text-lg font-semibold text-slate-900">{Array.isArray(resultado?.matches) ? resultado.matches.length : 0}</div>
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">CRM sugerido</div>
+                <div className="mt-2 text-3xl font-semibold leading-none text-slate-900">{Array.isArray(resultado?.matches) ? resultado.matches.length : 0}</div>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div className="text-xs text-slate-500">Seleccionadas</div>
-                <div className="text-lg font-semibold text-slate-900">{seleccionadas.size + manualLinksSeleccionados.size}</div>
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Accesos de apoyo</div>
+                <div className="mt-2 text-3xl font-semibold leading-none text-slate-900">{portalSearchLinks.length + analisisExtraLinks.length}</div>
               </div>
             </div>
 
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-              Analisis completado.
-              {clienteLabel ? (
-                <span className="ml-1">Cliente: <span className="font-semibold">{clienteLabel}</span>.</span>
-              ) : null}
-            </div>
+            {busquedaSeleccionada && (
+              <div className="rounded-3xl border border-sky-200 bg-[linear-gradient(135deg,rgba(14,165,233,0.10),rgba(255,255,255,0.95))] p-4 text-sm text-sky-950 shadow-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Contexto activo</div>
+                <div className="mt-2">
+                  Ahora estás trabajando sobre la búsqueda <span className="font-semibold">{buildBusquedaLabel(busquedaSeleccionada)}</span>.
+                  Los links manuales que pegues abajo deberían corresponder a este requerimiento.
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 flex-wrap">
               <Button
@@ -951,7 +1061,7 @@ function ParsearBusquedaContent() {
                   window.location.href = `/gestion?clienteId=${clienteId}`
                 }}
               >
-                Ir a Gestion del Cliente
+                Ir a Gestión del Cliente
               </Button>
               {(manualLinksSeleccionados.size > 0 || seleccionadas.size > 0) && (
                 <Button
@@ -959,132 +1069,154 @@ function ParsearBusquedaContent() {
                   className="bg-emerald-600 hover:bg-emerald-700"
                   onClick={guardarBusqueda}
                 >
-                  Guardar seleccion y pasar a Gestion
+                  Guardar selección y pasar a Gestión
                 </Button>
               )}
             </div>
 
-            <div className="space-y-3">
-                <div className="text-sm font-semibold text-slate-800">Investigacion externa guiada</div>
-                <div className="text-xs text-slate-500">
-                  Paso 1: abre portales con filtros. Paso 2: revisa fuentes complementarias. Paso 3: elige inmobiliarias de Santa Fe. Paso 4: pega abajo los links encontrados.
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="text-sm font-semibold text-slate-800 mb-2">
-                    Paso 1 · Portales principales
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {portalSearchLinks.map((link: any) => (
-                      <a
-                        key={link.id}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-700">Paso 2 · Fuentes complementarias</div>
-                    <div className="text-xs text-slate-500">No reemplaza al CRM: sirve para ampliar investigacion.</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {analisisExtraLinks.map((link: any) => (
-                      <a
-                        key={link.id}
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                  <div className="border-t border-slate-200 pt-3">
-                    <div className="text-xs font-semibold text-slate-700 mb-2">Paso 3 · Inmobiliarias Santa Fe</div>
-                    <div className="text-xs text-slate-500 mb-2">Elegí una inmobiliaria: si tiene sitio oficial va directo, sino busca en Mercado Único.</div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
-                    <select
-                      value={inmoMercadoUnico}
-                      onChange={(e) => setInmoMercadoUnico(e.target.value)}
-                      className="md:col-span-2 px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
-                    >
-                      <option value="">Elegir inmobiliaria...</option>
-                      {MERCADO_UNICO_INMOBILIARIAS.map((inmo) => (
-                        <option key={inmo} value={inmo}>
-                          {inmo}
-                          {hasSitioOficialInmo(inmo) ? ' ✓ sitio oficial' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <a
-                      href={inmoPrimaryUrl || '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-disabled={!inmoPrimaryUrl}
-                      className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
-                        !inmoPrimaryUrl
-                          ? 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
-                          : hasSitioOficialInmo(inmoMercadoUnico)
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
-                      }`}
-                    >
-                      {inmoPrimaryLabel || 'Elegí inmobiliaria'}
-                    </a>
-                    <a
-                      href={inmoSitioOficialUrl || '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-disabled={!inmoSitioOficialUrl}
-                      className={`inline-flex items-center justify-center rounded-md border px-3 py-2 text-xs font-semibold ${
-                        inmoSitioOficialUrl
-                          ? 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
-                          : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
-                      }`}
-                    >
-                      Buscar sitio web
-                    </a>
-                    <a
-                      href="https://www.mercado-unico.com/"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      Directorio MU
-                    </a>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
-                  El flujo ya no depende del scraping en vivo. Abrí los portales sugeridos, copiá los links reales que encuentres y cargalos manualmente abajo.
-                </div>
-              </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Link externo manual</CardTitle>
+            <Card className="overflow-hidden border-emerald-200 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(255,255,255,0.96),rgba(14,165,233,0.08))] shadow-md shadow-emerald-100/70">
+              <CardHeader className="border-b border-emerald-100 bg-white/75 backdrop-blur">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Paso principal</div>
+                <CardTitle className="text-emerald-950">Cargar links encontrados</CardTitle>
                 <p className="text-sm text-slate-600">
-                  Agrega los links externos que necesites, marcarlos y guardalos en la gestion del cliente.
+                  Pegá acá los links reales que encontraste en los portales. Cada link se convierte en una card seleccionable para seguir el flujo.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4 pt-6">
+                <div className="rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm text-emerald-950 shadow-sm">
+                  Este es el bloque principal. Pegá links reales, revisá la coincidencia y después mandalos a Gestión.
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-sm">
+                  Orden actual: primero links seleccionados, después links cargados y al final filas vacías para seguir trabajando.
+                </div>
                 {manualLinksOrdenados.map((manualLink, index) => {
                   const disabledSelect = !manualLink.url.trim()
                   const isSelected = manualLinksSeleccionados.has(manualLink.id)
                   const preview = getManualLinkPreview(manualLink)
+                  const analysis = getManualLinkAnalysis(manualLink)
                   const portalColors = getPortalColorClasses(preview.portal.badge)
                   const originalIndex = manualLinks.findIndex((item) => item.id === manualLink.id)
+                  const isActive = manualLinkActivoId === manualLink.id
                   return (
-                    <div key={manualLink.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs font-semibold text-slate-600">Link #{originalIndex + 1}</div>
-                        <div className="flex items-center gap-2">
+                    <div key={manualLink.id} className={`rounded-[28px] border p-5 space-y-4 shadow-sm transition ${isActive ? 'border-sky-300 bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0.96))]' : 'border-slate-200 bg-white'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Card #{originalIndex + 1}</span>
+                            {isActive && <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-700">Actual</span>}
+                            {manualLink.url.trim() && !isSelected && <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">Cargado</span>}
+                            {isSelected && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">Seleccionado</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex h-8 min-w-11 items-center justify-center rounded-full border px-2 text-[10px] font-semibold ${portalColors.chip}`}>
+                              {preview.portal.badge}
+                            </span>
+                            <span className="text-sm font-semibold text-slate-800">{preview.portal.nombre}</span>
+                          </div>
+                        </div>
+                        <div className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold shadow-sm ${
+                          isSelected
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-slate-300 bg-white text-slate-300'
+                        }`}>
+                          OK
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div className="space-y-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Titulo visible</div>
+                          <Input
+                            placeholder="Ej: Casa 3D Guadalupe"
+                            value={manualLink.titulo}
+                            onChange={(e) => updateManualLink(manualLink.id, 'titulo', e.target.value)}
+                            onFocus={() => setManualLinkActivoId(manualLink.id)}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Link actual</div>
+                          <Input
+                            placeholder="Pega URL completa (https://...)"
+                            value={manualLink.url}
+                            onChange={(e) => updateManualLink(manualLink.id, 'url', e.target.value)}
+                            onFocus={() => setManualLinkActivoId(manualLink.id)}
+                          />
+                        </div>
+                      </div>
+
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (!disabledSelect) toggleManualLinkSeleccionado(manualLink.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (disabledSelect) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleManualLinkSeleccionado(manualLink.id)
+                          }
+                        }}
+                        className={`rounded-[24px] border p-4 transition cursor-pointer ${
+                          isSelected ? `${portalColors.card} shadow-sm` : 'border-slate-200 bg-slate-50/80'
+                        }`}
+                      >
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vista previa</div>
+                        <div className="mt-2 text-base font-semibold text-slate-900 break-words">
+                          {preview.titulo}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500 break-all">
+                          {manualLink.url.trim() || preview.subtitulo}
+                        </div>
+                      </div>
+
+                      {analysis && (
+                        <div className="rounded-[24px] border border-slate-200 bg-white p-4 space-y-3 shadow-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Coincidencia con la búsqueda</div>
+                              <div className="mt-1 text-sm font-semibold text-slate-900">
+                                {analysis.match.score}% {analysis.match.nivel === 'ALTO' ? 'Alta coincidencia' : analysis.match.nivel === 'MEDIO' ? 'Coincidencia media' : 'Coincidencia baja'}
+                              </div>
+                            </div>
+                            <div className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              analysis.match.score >= 80
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : analysis.match.score >= 50
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              Match {analysis.match.score}%
+                            </div>
+                          </div>
+
+                          <div className="grid gap-2 md:grid-cols-2">
+                            {analysis.checks.map((check) => (
+                              <div
+                                key={check.label}
+                                className={`rounded-2xl border px-3 py-3 ${
+                                  check.ok
+                                    ? 'border-emerald-200 bg-emerald-50'
+                                    : check.pending
+                                      ? 'border-slate-200 bg-slate-50'
+                                      : 'border-rose-200 bg-rose-50'
+                                }`}
+                              >
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{check.label}</div>
+                                <div className={`mt-1 text-sm font-semibold ${
+                                  check.ok ? 'text-emerald-700' : check.pending ? 'text-slate-600' : 'text-rose-700'
+                                }`}>
+                                  {check.ok ? 'Coincide' : check.pending ? 'No se pudo validar' : 'No coincide'}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-600">{check.detail}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
                           <Button
                             type="button"
                             variant="outline"
@@ -1110,7 +1242,7 @@ function ParsearBusquedaContent() {
                             disabled={disabledSelect}
                             onClick={() => toggleManualLinkSeleccionado(manualLink.id)}
                           >
-                            {isSelected ? 'Quitar seleccion' : 'Seleccionar link'}
+                            {isSelected ? 'Quitar selección' : 'Seleccionar link'}
                           </Button>
                           <Button
                             type="button"
@@ -1121,111 +1253,230 @@ function ParsearBusquedaContent() {
                           >
                             Quitar
                           </Button>
-                        </div>
-                      </div>
-                      <Input
-                        placeholder="Titulo visible (ej: Casa 3D Guadalupe)"
-                        value={manualLink.titulo}
-                        onChange={(e) => updateManualLink(manualLink.id, 'titulo', e.target.value)}
-                      />
-                      <Input
-                        placeholder="Pega URL completa (https://...)"
-                        value={manualLink.url}
-                        onChange={(e) => updateManualLink(manualLink.id, 'url', e.target.value)}
-                      />
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          if (!disabledSelect) toggleManualLinkSeleccionado(manualLink.id)
-                        }}
-                        onKeyDown={(e) => {
-                          if (disabledSelect) return
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            toggleManualLinkSeleccionado(manualLink.id)
-                          }
-                        }}
-                        className={`rounded-lg border p-3 transition cursor-pointer ${
-                        isSelected
-                          ? portalColors.card
-                          : 'border-slate-200 bg-white'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-flex h-6 min-w-9 items-center justify-center rounded border px-2 text-[10px] font-semibold ${portalColors.chip}`}>
-                                {preview.portal.badge}
-                              </span>
-                              <span className="text-xs font-semibold text-slate-500">{preview.portal.nombre}</span>
-                              {isSelected && (
-                                <span className="text-[10px] font-semibold text-emerald-700">Seleccionado</span>
-                              )}
-                            </div>
-                            <div className="mt-2 text-sm font-semibold text-slate-900 break-words">
-                              {preview.titulo}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500 break-all">
-                              {manualLink.url.trim() || preview.subtitulo}
-                            </div>
-                          </div>
-                          <div className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded border text-xs ${
-                            isSelected
-                              ? 'border-emerald-600 bg-emerald-600 text-white'
-                              : 'border-slate-300 bg-white text-transparent'
-                          }`}>
-                            OK
-                          </div>
-                        </div>
+                          {manualLink.url.trim() && (
+                            <a
+                              href={manualLink.url.trim()}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
+                            >
+                              Abrir link
+                            </a>
+                          )}
                       </div>
                       {isSelected && (
-                        <div className="text-sm text-green-700">
-                          Link seleccionado: {preview.titulo} - {manualLink.url.trim()}
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 shadow-sm">
+                          Seleccionado para Gestión: {preview.titulo}
                         </div>
                       )}
                     </div>
                   )
                 })}
-                <Button type="button" variant="outline" onClick={addManualLink}>
+                <Button type="button" variant="outline" onClick={addManualLink} className="rounded-2xl bg-white">
                   + Agregar otro link
                 </Button>
               </CardContent>
             </Card>
 
-            {Array.isArray(resultado?.matches) && resultado.matches.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-800">
-                  Propiedades del CRM ({resultado.matches.length})
+            <div className="space-y-4">
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,rgba(14,165,233,0.08),rgba(255,255,255,0.96),rgba(16,185,129,0.08))] shadow-sm">
+                <div className="border-b border-slate-200/80 px-5 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Exploración manual</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">Dónde buscar opciones</div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        Abrí portales con filtros, revisá opciones y después volvé acá a pegar solo los links que te interesen.
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-sky-200 bg-white/80 px-4 py-3 text-right shadow-sm">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Modo</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">Manual, sin scraping</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {resultado.matches.map((m: any, idx: number) => (
-                    <div key={`${m?.id || idx}`} className="p-3 bg-white border rounded-lg">
-                      <div className="flex items-start justify-between gap-3">
-                        <input
-                          type="checkbox"
-                          checked={seleccionadas.has(`match:${idx}`)}
-                          onChange={() => toggleSeleccion(`match:${idx}`)}
-                          className="mt-1"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-slate-900 line-clamp-1">
-                            {m?.titulo || m?.propiedad?.titulo || 'Propiedad'}
-                          </div>
-                          <div className="text-xs text-slate-600 line-clamp-1">
-                            {m?.ubicacion || m?.propiedad?.ubicacion || '-'}
+
+                <div className="grid gap-4 p-5 xl:grid-cols-[1.15fr_0.85fr]">
+                  <div className="space-y-4">
+                    <div className="overflow-hidden rounded-3xl border border-amber-200 bg-[linear-gradient(135deg,rgba(251,191,36,0.16),rgba(255,255,255,0.96),rgba(249,115,22,0.10))] p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Acceso destacado</div>
+                          <div className="mt-1 text-base font-semibold text-slate-900">Tus propiedades en Market Santa Fe</div>
+                          <div className="mt-1 text-xs text-slate-600">
+                            Link directo para revisar tu inventario publicado y compartir opciones rápido.
                           </div>
                         </div>
-                        <div className="text-sm font-bold text-slate-900 whitespace-nowrap">
-                          {m?.precio ? `${m?.moneda || ''} ${m?.precio}` : (m?.propiedad?.precio ? `${m?.propiedad?.moneda || ''} ${m?.propiedad?.precio}` : '-')}
+                        <a
+                          href="https://www.marketsantafe.com.ar/inmobiliaria/inmobiliaria-solar"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
+                        >
+                          Abrir Market Santa Fe
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Prioridad 1</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">Portales principales</div>
+                        </div>
+                        <div className="text-xs text-slate-500">Empezá por acá</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {portalSearchLinks.map((link: any) => (
+                          <a
+                            key={link.id}
+                            href={link.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-800 transition hover:border-sky-300 hover:bg-sky-100"
+                          >
+                            {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="mb-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Prioridad 2</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">Fuentes complementarias</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Útiles para ampliar la búsqueda. No traen resultados automáticos.
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {analisisExtraLinks.map((link: any) => (
+                          <a
+                            key={link.id}
+                            href={link.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                          >
+                            {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Directorio local</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">Inmobiliarias de Santa Fe</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Si tiene sitio oficial abre directo; si no, te lleva a Mercado Único.
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <select
+                        value={inmoMercadoUnico}
+                        onChange={(e) => setInmoMercadoUnico(e.target.value)}
+                        className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-800 focus:border-sky-400 focus:outline-none"
+                      >
+                        <option value="">Elegir inmobiliaria...</option>
+                        {MERCADO_UNICO_INMOBILIARIAS.map((inmo) => (
+                          <option key={inmo} value={inmo}>
+                            {inmo}
+                            {hasSitioOficialInmo(inmo) ? ' ✓ sitio oficial' : ''}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                        <a
+                          href={inmoPrimaryUrl || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-disabled={!inmoPrimaryUrl}
+                          className={`inline-flex items-center justify-center rounded-2xl border px-3 py-3 text-xs font-semibold transition ${
+                            !inmoPrimaryUrl
+                              ? 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                              : hasSitioOficialInmo(inmoMercadoUnico)
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                          }`}
+                        >
+                          {inmoPrimaryLabel || 'Elegí inmobiliaria'}
+                        </a>
+                        <a
+                          href={inmoSitioOficialUrl || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-disabled={!inmoSitioOficialUrl}
+                          className={`inline-flex items-center justify-center rounded-2xl border px-3 py-3 text-xs font-semibold transition ${
+                            inmoSitioOficialUrl
+                              ? 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                              : 'border-slate-200 bg-slate-100 text-slate-400 pointer-events-none'
+                          }`}
+                        >
+                          Buscar sitio web
+                        </a>
+                        <a
+                          href="https://www.mercado-unico.com/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-3 py-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          Directorio MU
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {Array.isArray(resultado?.matches) && resultado.matches.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Referencia interna</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-800">
+                      Propiedades del CRM ({resultado.matches.length})
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                    Solo referencia visual
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {resultado.matches.map((m: any, idx: number) => (
+                    <div key={`${m?.id || idx}`} className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex min-w-0 flex-1 gap-3">
+                          <input
+                            type="checkbox"
+                            checked={seleccionadas.has(`match:${idx}`)}
+                            onChange={() => toggleSeleccion(`match:${idx}`)}
+                            className="mt-1"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-base font-semibold text-slate-900 line-clamp-2">
+                              {m?.titulo || m?.propiedad?.titulo || 'Propiedad'}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-600 line-clamp-2">
+                              {m?.ubicacion || m?.propiedad?.ubicacion || '-'}
+                            </div>
+                            <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                              {m?.precio ? `${m?.moneda || ''} ${m?.precio}` : (m?.propiedad?.precio ? `${m?.propiedad?.moneda || ''} ${m?.propiedad?.precio}` : '-')}
+                            </div>
+                          </div>
                         </div>
                       </div>
                       {(m?.id || m?.propiedad?.id) && (
-                        <div className="mt-2 pl-6">
+                        <div className="mt-4 pl-6">
                           <a
                             href={`/propiedades/${m?.id || m?.propiedad?.id}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                           >
                             Ver propiedad
                           </a>

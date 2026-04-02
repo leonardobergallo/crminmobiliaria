@@ -55,6 +55,12 @@ const Icons = {
       <polyline points="21 15 16 10 5 21"></polyline>
     </svg>
   ),
+  links: () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l2.92-2.92a5 5 0 0 0-7.07-7.08L11.71 5"></path>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-2.92 2.92a5 5 0 0 0 7.07 7.08L12.29 19"></path>
+    </svg>
+  ),
   matches: () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
@@ -184,6 +190,7 @@ const Sidebar = () => {
     { href: '/clientes', label: 'Clientes', icon: Icons.clientes, description: 'Base de datos de clientes', group: 'principal' },
     { href: '/busquedas', label: 'Búsquedas', icon: Icons.busquedas, description: 'Requerimientos de clientes', group: 'principal' },
     { href: '/parsear', label: 'Búsqueda Inteligente', icon: Icons.parsear, description: 'Buscar propiedades con analisis inteligente', group: 'herramientas' },
+    { href: '/flujo-manual', label: 'Flujo Manual', icon: Icons.links, description: 'Links inteligentes sin scraping', group: 'herramientas' },
     { href: '/propiedades', label: 'Propiedades', icon: Icons.propiedades, description: 'Inventario de propiedades', group: 'herramientas' },
     { href: '/carga-rapida', label: 'Carga Rápida', icon: Icons.carga, description: 'Agregar propiedades rápido', group: 'herramientas' },
     { href: '/tareas', label: 'Agenda / Tareas', icon: Icons.agenda, description: 'Visitas y recordatorios', group: 'herramientas' },

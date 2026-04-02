@@ -2039,9 +2039,9 @@ export default function BusquedasPage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Links manuales para continuar el flujo</CardTitle>
+                    <CardTitle>Cargar resultados encontrados para esta busqueda</CardTitle>
                     <p className="text-sm text-slate-600">
-                      Cada link se convierte en una card. El sistema detecta el portal desde la URL, arma un titulo inicial y te deja ordenar y seleccionar antes de pasar a Gestion.
+                      Pegá acá los links reales que encontraste en los portales. Cada link se convierte en una card seleccionable para seguir el flujo.
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-3">

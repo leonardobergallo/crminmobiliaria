@@ -66,6 +66,7 @@ model Usuario {
   operaciones       Operacion[]
   sesiones          Session[]
   busquedasCreadas  Busqueda[]
+  manualLinks       ManualLink[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -109,6 +110,7 @@ model Cliente {
   operaciones       Operacion[]
   enviosPropiedades EnvioPropiedad[]
   comunicaciones    Comunicacion[]
+  manualLinks       ManualLink[]
   
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -154,6 +156,7 @@ model Busqueda {
   // Relaciones
   matchesPropiedades    MatchBusquedaPropiedad[]
   tareas                Tarea[]
+  manualLinks           ManualLink[]
   
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -401,4 +404,51 @@ model Comunicacion {
   @@index([clienteId])
   @@index([fecha])
   @@index([tipo])
+}
+
+// MANUAL LINK: Flujo manual de links inteligentes, independiente de propiedades internas
+model ManualLink {
+  id                    String    @id @default(cuid())
+
+  busquedaId            String
+  busqueda              Busqueda  @relation(fields: [busquedaId], references: [id], onDelete: Cascade)
+
+  clienteId             String
+  cliente               Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  createdBy             String?
+  usuario               Usuario?  @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  url                   String
+  normalizedUrl         String
+  portal                String
+  portalDomain          String?
+
+  tituloInferido        String?
+  precioInferido        Int?
+  monedaInferida        String?
+  zonaInferida          String?
+  tipoOperacion         String?
+  dormitoriosInferidos  Int?
+  ambientesInferidos    Int?
+  tipoPropiedadInferido String?
+
+  matchScore            Int       @default(0)
+  matchNivel            String    @default("BAJO") // ALTO | MEDIO | BAJO
+  estado                String    @default("NUEVO") // NUEVO | SELECCIONADO | DESCARTADO | ENVIADO
+
+  fueEnviadoAntes       Boolean   @default(false)
+  enviadoGestionAt      DateTime?
+  metadataJson          String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([busquedaId, normalizedUrl])
+  @@index([clienteId])
+  @@index([busquedaId])
+  @@index([createdBy])
+  @@index([estado])
+  @@index([matchScore])
+  @@index([fueEnviadoAntes])
 }
